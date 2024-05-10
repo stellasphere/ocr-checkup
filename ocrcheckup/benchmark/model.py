@@ -1,5 +1,6 @@
 import traceback
 import numpy as np
+import time
 
 class OCRBaseModel():
   name = "name"
