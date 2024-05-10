@@ -1,0 +1,23 @@
+from ocrcheckup.models import OCRBaseModel
+
+from inference_sdk import InferenceHTTPClient
+
+class ImplementationName(OCRBaseModel):
+  name = "Model Name"
+  version = "Version Name (Variation)"
+
+  is_cloud = False
+  is_lmm = False
+
+  def __init__(self,api_key):
+    super().__init__()
+
+  def evaluate(self,image):
+  
+
+    return {
+      "result": text,
+      "cost": 0.003
+    }
+
+    return "result string"
