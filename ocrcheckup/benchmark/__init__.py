@@ -48,7 +48,7 @@ class Benchmark():
     for model_idx, model in enumerate(models):
       model_result = model_results[model_idx]
       
-      print(f"Testing Model: {model_result.model.name}")
+      print(f"\nTesting Model: {model_result.model.name}")
       print(f"- Version: {model_result.model.version}")
 
       if use_autosave:

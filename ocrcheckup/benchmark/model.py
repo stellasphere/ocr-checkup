@@ -34,13 +34,15 @@ class OCRBaseModel():
     result = self.evaluate(image)
     elapsed_time = time.perf_counter()-start_time
 
-    if type(result) is not str:
-      result = result["result"]
-      cost = result["cost"]
+    cost = None
 
+    if isinstance(result,dict):
+      cost = result["cost"]
+      result = result["result"]
+      
     return {
         "start_time": start_time,
         "elapsed_time": elapsed_time,
         "result": result,
-        "cost": cost or None
+        "cost": cost
     }
