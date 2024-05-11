@@ -7,6 +7,7 @@ import statistics
 import dill
 import time
 import numpy as np
+import supervision as sv
 
 class Benchmark():
   def __init__(self, name, images=[], annotations=[]):
@@ -94,6 +95,12 @@ class Benchmark():
       data = dill.load(inp)
     return data
 
+  def showcase(self, max_count=12, size=(12,12)):
+    images = self.images[:max_count]
+    titles = self.annotations[:max_count]
+    
+    sv.plot_images_grid(images, grid_size=(3, 4), titles=titles, size=size)
+
   @classmethod
   def from_supervision_dataset(cls,name,sv_dataset):
     images = []
@@ -137,6 +144,12 @@ class BenchmarkModelResult():
     with open(path, 'rb') as inp:
       data = dill.load(inp)
     return data
+  
+  def showcase(self, max_count=12, size=(12,12)):
+    images = self.benchmark.images[:max_count]
+    titles = self.results.tolist()[:max_count]
+    
+    sv.plot_images_grid(images, grid_size=(3, 4), titles=titles, size=size)
 
 
 class BenchmarkModelMetrics():
