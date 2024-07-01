@@ -1,14 +1,15 @@
-from ocrcheckup.models import OCRBaseModel
+from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
 
 import pytesseract
 from PIL import Image
 
 class Tesseract(OCRBaseModel):
-  name = "Tesseract"
-  version = "PyTesseract (Default)"
-
-  is_cloud = False
-  is_lmm = False
+  def info(self=None):
+    return OCRModelInfo(
+      name = "Tesseract",
+      version = "PyTesseract (Default)",
+      tags = ["local"]
+    )
 
   def evaluate(self,image):
     text = pytesseract.image_to_string(Image.fromarray(image))

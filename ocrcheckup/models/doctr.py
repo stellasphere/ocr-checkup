@@ -1,13 +1,14 @@
-from ocrcheckup.models import OCRBaseModel
+from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
 
 from inference_sdk import InferenceHTTPClient
 
 class DocTR_RFHosted(OCRBaseModel):
-  name = "DocTR"
-  version = "Roboflow Hosted (Default)"
-
-  is_cloud = True
-  is_lmm = False
+  def info(self=None):
+    return OCRModelInfo(
+      name = "DocTR",
+      version = "Roboflow Hosted (Default)",
+      tags = ["cloud"]
+    )
 
   def __init__(self,api_key):
     self.api_key = api_key
@@ -22,7 +23,7 @@ class DocTR_RFHosted(OCRBaseModel):
     result = CLIENT.ocr_image(inference_input=image)
     text = result["result"]
 
-    return {
-      "result": text,
-      "cost": 0.003
-    }
+    return OCRModelResponse(
+      prediction=text,
+      cost=0.003
+    )
