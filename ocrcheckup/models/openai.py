@@ -5,7 +5,7 @@ from io import BytesIO
 from PIL import Image
 import base64
 
-class OpenAI_GPT4o(OCRBaseModel):
+class GPT_4o(OCRBaseModel):
   def info(self=None):
     return OCRModelInfo(
       name = "GPT-4o",

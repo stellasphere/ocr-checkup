@@ -134,6 +134,8 @@ class OCRBaseModel:
 
     def run_for_eval(self, image):
         result = None # Initialize result
+        elapsed_time = None
+        start_time = None
         try:
             start_time = time.perf_counter()
             result = self.evaluate(image)
