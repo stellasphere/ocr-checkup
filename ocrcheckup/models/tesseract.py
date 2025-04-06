@@ -7,7 +7,7 @@ class Tesseract(OCRBaseModel):
   def info(self=None):
     return OCRModelInfo(
       name = "Tesseract",
-      version = "PyTesseract (Default)",
+      version = "PyTesseract",
       tags = ["local"]
     )
 

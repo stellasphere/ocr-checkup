@@ -2,11 +2,11 @@ from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelI
 
 from inference_sdk import InferenceHTTPClient
 
-class DocTR_RFHosted(OCRBaseModel):
+class DocTR_RoboflowHosted(OCRBaseModel):
   def info(self=None):
     return OCRModelInfo(
       name = "DocTR",
-      version = "Roboflow Hosted (Default)",
+      version = "roboflow-hosted",
       tags = ["cloud"]
     )
 

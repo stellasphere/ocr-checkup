@@ -43,10 +43,10 @@ class TestModel(OCRBaseModel):
 
         return OCRModelResponse(prediction="text", cost=0.00)
 
-from ocrcheckup.models import DocTR_RFHosted, OpenAI_GPT4o, Moondream2, TrOCR_Base_Printed
+from ocrcheckup.models import DocTR_RoboflowHosted, OpenAI_GPT4o, Moondream2, TrOCR_Base_Printed
 
 models = [
-    DocTR_RFHosted(api_key=os.environ["ROBOFLOW_API_KEY"]),
+    DocTR_RoboflowHosted(api_key=os.environ["ROBOFLOW_API_KEY"]),
     OpenAI_GPT4o(api_key=os.environ["OPENAI_API_KEY"]),
     Moondream2(),
     TrOCR_Base_Printed(),
