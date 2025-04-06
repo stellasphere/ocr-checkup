@@ -5,6 +5,8 @@ __pycache__/
 datasets
 testing
 
+testing_colab.py
+
 # Distribution / packaging
 .Python
 build/
