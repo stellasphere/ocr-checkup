@@ -56,7 +56,7 @@ benchmark_results = IndustrialSceneBenchmark.benchmark(
     autosave_dir="testing",
     create_autosave=True,
     run_models=True,
-    overwrite=True,
+    overwrite=False,
 )
 print("Benchmark Results:", type(benchmark_results))
 

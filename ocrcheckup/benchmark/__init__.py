@@ -21,13 +21,27 @@ class Benchmark:
 
     def benchmark(
         self,
-        models,
-        create_autosave=True,
-        autosave_dir=None,
-        use_autosave=True,
-        run_models=True,
-        overwrite=False,
+        models: List[OCRBaseModel],
+        autosave_dir: str = None,
+        create_autosave: bool = True,
+        use_autosave: bool = True,
+        overwrite: bool = False,
+        run_models: bool = True,
     ):
+        """
+        Benchmark OCR models against the dataset.
+        
+        Args:
+            models (List[OCRBaseModel]): List of OCR models to benchmark.
+            create_autosave (bool, optional): Whether to save benchmark results. Defaults to True.
+            autosave_dir (str, optional): Directory to save benchmark results. Defaults to "{benchmark_name}_Autosaves".
+            use_autosave (bool, optional): Whether to load previously saved results. Defaults to True.
+            run_models (bool, optional): Whether to run the models or just load saved results. Defaults to True.
+            overwrite (bool, optional): Whether to overwrite existing results. Defaults to False.
+            
+        Returns:
+            List[BenchmarkModelResult]: Results of the benchmark for each model.
+        """
         if autosave_dir is None:
             autosave_dir = f"{self.name}_Autosaves"
 
@@ -75,6 +89,17 @@ class Benchmark:
             print(f"- Version: {model_result.model.version}")
 
             if use_autosave:
+                autosaved_model_results = {}
+                autosaved_model_results_path = os.path.join(autosave_dir, f"{model_result.model.name}_{model_result.model.version}")
+                if autosave_dir is not None and os.path.exists(autosaved_model_results_path):
+                    try:
+                        autosaved_model_results = BenchmarkModelResult.load(autosaved_model_results_path)
+                    except:
+                        print(f"Error loading autosaved model results at", autosaved_model_results_path)
+                        traceback.print_exc()
+                else:
+                    print(f"Could not find any autosaved model results at", autosaved_model_results_path)
+
                 if model_result.model.name in autosaved_model_results:
                     if (
                         model_result.model.version
@@ -109,14 +134,17 @@ class Benchmark:
             if run_models is False:
                 print("Skipping model inference (run_models=False)")
                 continue
-            for ground_idx, image in tqdm(enumerate(self.images)):
+            for ground_idx, image in tqdm(enumerate(self.images), total=len(self.images)):
                 model_image_result = model.run_for_eval(image)
 
                 model_result.add_result(model_image_result)
 
             print(f"\nModel: {model_result.model.name} finished testing")
+            # Calculate total and percentage, handle potential division by zero
+            total_processed = len(model_result.results) + len(model_result.failed)
+            success_percentage = (len(model_result.results) / total_processed * 100) if total_processed > 0 else 0
             print(
-                f"Successfully Processed %: {len(model_result.results)/(len(model_result.results)+len(model_result.failed)):0.2f}\n"
+                f"Successfully Processed %: {success_percentage:.2f}%\n" # Multiply by 100 and add % sign
             )
 
             if create_autosave and (run_models is True):
@@ -201,11 +229,14 @@ class BenchmarkModelResult:
         self.elapsed_times = np.append(self.elapsed_times, result.elapsed_time)
         self.results = np.append(self.results, result.prediction)
 
-    def save(self, dir="", path=None, overwrite=False):
+    def save(self, dir="", path=None, overwrite=False, create_dir=True):
         if path is None:
             path = self.id
 
         file_path = os.path.join(dir, path)
+
+        if create_dir:
+            os.makedirs(dir, exist_ok=True)
 
         mode = "wb" if overwrite else "xb"
         try:

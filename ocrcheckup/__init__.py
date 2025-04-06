@@ -1,7 +1,13 @@
-from ocrcheckup.benchmark import (
-  Benchmark,
-  BenchmarkModelResult
+from .benchmark import Benchmark, OCRBaseModel
+from .evaluation import (
+    ValuesSummarization,
+    StringMetrics,
+    SpeedMetrics,
+    CostMetrics,
+    calculate_efficiency_metrics,
 )
-from ocrcheckup.evaluation import (
-    StringMetrics
-)
+
+from . import utils
+from . import visualization
+
+__version__ = "0.1.0"
