@@ -1,6 +1,8 @@
 import traceback
 import numpy as np
 import time
+import hashlib # Import hashlib for config identifier hashing if needed
+import json # Import json for config identifier serialization
 
 
 class OCRModelResponse:
@@ -37,11 +39,12 @@ class OCRModelInfo:
     # Added 'local' tag
     VALID_COST_TYPES = ["api", "compute", None] # Added cost types
 
-    def __init__(self, name: str, version: str, tags: list, cost_type: str = None) -> None:
+    def __init__(self, name: str, version: str, tags: list, cost_type: str = None, config_identifier: str = None) -> None: # Added config_identifier
         self.name = name
         self.version = version
         self.tags = tags
         self.cost_type = cost_type # Added cost_type attribute
+        self.config_identifier = config_identifier # Added config_identifier attribute
 
         assert all(tag in self.VALID_TAGS for tag in tags)
         assert cost_type in self.VALID_COST_TYPES
@@ -49,11 +52,61 @@ class OCRModelInfo:
 
 class OCRBaseModel:
     def info(self) -> OCRModelInfo: # Changed to instance method
-        raise NotImplementedError("Info function must be implemented by a subclass")
+        # Base info method now constructs the OCRModelInfo using get_config_identifier
+        # Subclasses MUST override _get_base_info to provide name, version, etc.
+        # This ensures config_identifier is consistently handled.
+        base_info = self._get_base_info()
+        return OCRModelInfo(
+            name=base_info['name'],
+            version=base_info['version'],
+            tags=base_info['tags'],
+            cost_type=base_info.get('cost_type'), # Use .get for optional cost_type
+            config_identifier=self.get_config_identifier()
+        )
 
-    def __init__(self, cost_per_second: float = None): # Added optional cost_per_second
+    def _get_base_info(self) -> dict:
+        # Subclasses must implement this to return a dict with
+        # 'name', 'version', 'tags', and optionally 'cost_type'
+        raise NotImplementedError("_get_base_info must be implemented by a subclass")
+
+
+    def __init__(self, cost_per_second: float = None, **kwargs): # Added **kwargs
         self.cost_per_second = cost_per_second # Store cost_per_second
+        self.config_params = kwargs # Store arbitrary configuration parameters
         return None
+
+    def get_config_identifier(self, max_len=50) -> str:
+        """Generates a stable, filesystem-safe identifier from config_params."""
+        if not self.config_params:
+            return "default"
+
+        # Create a sorted, canonical JSON string representation
+        try:
+            # Sort keys for stability, handle non-string values
+            sorted_params = dict(sorted(self.config_params.items()))
+            config_str = json.dumps(sorted_params, sort_keys=True, separators=(',', ':'))
+        except TypeError:
+            # Fallback for non-JSON serializable types (less ideal)
+            config_str = str(dict(sorted(self.config_params.items())))
+
+
+        # Basic sanitization for filesystem compatibility
+        # Replace common problematic characters
+        safe_str = "".join(c if c.isalnum() or c in ('-', '_', '=', ':') else '_' for c in config_str)
+        # Remove potential leading/trailing underscores/hyphens and multiple consecutive underscores
+        safe_str = safe_str.strip('_-')
+        while '__' in safe_str:
+            safe_str = safe_str.replace('__', '_')
+
+
+        # Optional: Hash if the string is too long (or always hash for consistency)
+        # Using SHA-1 for a shorter hash, collision risk is low for typical config counts
+        # if len(safe_str) > max_len:
+        #     return hashlib.sha1(safe_str.encode()).hexdigest()[:10] # Short hash
+
+        # Return the sanitized string (potentially truncated)
+        return safe_str[:max_len].rstrip('_-') # Truncate and clean end
+
 
     def test(self):
         try:
@@ -81,9 +134,8 @@ class OCRBaseModel:
 
     def run_for_eval(self, image):
         result = None # Initialize result
-        start_time = time.perf_counter()
-        elapsed_time = None
         try:
+            start_time = time.perf_counter()
             result = self.evaluate(image)
             elapsed_time = time.perf_counter() - start_time
 
@@ -100,7 +152,7 @@ class OCRBaseModel:
             ):
                 result.cost = elapsed_time * self.cost_per_second
 
-        except Exception as e: # Catch specific Exception
+        except Exception as e:
             # Ensure elapsed time is recorded even on failure if possible
             if elapsed_time is None:
                  elapsed_time = time.perf_counter() - start_time

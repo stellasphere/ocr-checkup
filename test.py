@@ -9,7 +9,6 @@ from roboflow import Roboflow
 import ocrcheckup.evaluation
 import ocrcheckup.models
 import ocrcheckup.utils
-from ocrcheckup.models import DocTR_RFHosted, OpenAI_GPT4o
 
 rf = Roboflow(api_key=os.environ["ROBOFLOW_API_KEY"])
 project = rf.workspace("leo-ueno").project("ocr-benchmarking")
@@ -44,19 +43,24 @@ class TestModel(OCRBaseModel):
 
         return OCRModelResponse(prediction="text", cost=0.00)
 
+from ocrcheckup.models import DocTR_RFHosted, OpenAI_GPT4o, Moondream2, TrOCR_Base_Printed
 
 models = [
     DocTR_RFHosted(api_key=os.environ["ROBOFLOW_API_KEY"]),
     OpenAI_GPT4o(api_key=os.environ["OPENAI_API_KEY"]),
-    TestModel(),
+    Moondream2(),
+    TrOCR_Base_Printed(),
 ]
+
+models_to_overwrite = ["Test Model"]
 
 benchmark_results = IndustrialSceneBenchmark.benchmark(
     models,
     autosave_dir="testing",
     create_autosave=True,
+    use_autosave=True, # Make sure this is True to test loading/overwriting
     run_models=True,
-    overwrite=False,
+    overwrite=models_to_overwrite, # Pass the list or boolean here
 )
 print("Benchmark Results:", type(benchmark_results))
 
@@ -69,7 +73,7 @@ print(ocrcheckup.utils.pretty_json(string_metrics))
 
 speed_metrics = ocrcheckup.evaluation.SpeedMetrics.from_benchmark_model_results(
     benchmark_results,
-    handle_empty_results='ignore'
+    handle_empty_results='zero'
 )
 print("Speed Metrics:")
 print(ocrcheckup.utils.pretty_json(speed_metrics))

@@ -4,7 +4,6 @@ from .evaluation import (
     StringMetrics,
     SpeedMetrics,
     CostMetrics,
-    calculate_efficiency_metrics,
 )
 
 from . import utils

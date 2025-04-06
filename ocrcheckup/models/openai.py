@@ -9,7 +9,7 @@ class OpenAI_GPT4o(OCRBaseModel):
   def info(self=None):
     return OCRModelInfo(
       name = "GPT-4o",
-      version = "gpt-4o-2024-05-13",
+      version = "gpt-4o-2024-11-20",
       tags = ["cloud","lmm"]
     )
 
