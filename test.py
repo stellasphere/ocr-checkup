@@ -61,11 +61,15 @@ benchmark_results = IndustrialSceneBenchmark.benchmark(
 print("Benchmark Results:", type(benchmark_results))
 
 string_metrics = ocrcheckup.evaluation.StringMetrics.from_benchmark_model_results(
-    benchmark_results
+    benchmark_results,
+    handle_empty_results="zero"
 )
+print("String Metrics:")
 print(ocrcheckup.utils.pretty_json(string_metrics))
 
 speed_metrics = ocrcheckup.evaluation.SpeedMetrics.from_benchmark_model_results(
-    benchmark_results
+    benchmark_results,
+    handle_empty_results='ignore'
 )
+print("Speed Metrics:")
 print(ocrcheckup.utils.pretty_json(speed_metrics))

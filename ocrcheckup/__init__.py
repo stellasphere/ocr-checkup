@@ -8,6 +8,5 @@ from .evaluation import (
 )
 
 from . import utils
-from . import visualization
 
 __version__ = "0.1.0"

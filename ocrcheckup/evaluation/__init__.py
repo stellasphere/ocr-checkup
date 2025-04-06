@@ -99,7 +99,28 @@ class StringMetrics:
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
         summarize=True,
+        handle_empty_results='error'
     ):
+        """
+        Calculates string evaluation metrics across multiple benchmark model results.
+
+        Args:
+            benchmark_results: List of BenchmarkModelResult objects.
+            eval_methods: List of evaluation methods to use (e.g., ['levenshtein_ratio']).
+            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
+            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
+            handle_empty_results (str): How to handle models with no successful results for a metric.
+                'error': Raise KeyError (default).
+                'ignore': Skip the model for that metric's summary.
+                'zero': Assign 0.0 for the summary statistics.
+
+        Returns:
+            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        """
+        allowed_handling = ['error', 'ignore', 'zero']
+        if handle_empty_results not in allowed_handling:
+            raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
+
         eval_results = []
         for idx, benchmark_result in enumerate(benchmark_results):
             eval_results.append(
@@ -118,10 +139,25 @@ class StringMetrics:
                 summarized_results[eval_method][summarization_method] = {}
                 for idx, eval_result in enumerate(eval_results):
                     model_name = benchmark_results[idx].model.name
-                    summarized_results[eval_method][summarization_method][
-                        model_name
-                    ] = eval_result[eval_method][summarization_method]
 
+                    if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
+                        summarized_results[eval_method][summarization_method][
+                            model_name
+                        ] = eval_result[eval_method][summarization_method]
+                    else:
+                        if handle_empty_results == 'error':
+                            raise KeyError(
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
+                                f"This often happens with 0 successful results. "
+                                f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
+                            )
+                        elif handle_empty_results == 'ignore':
+                            pass
+                        elif handle_empty_results == 'zero':
+                            summarized_results[eval_method][summarization_method][
+                                model_name
+                            ] = 0.0
+                            
         return summarized_results
     
 
@@ -169,7 +205,28 @@ class SpeedMetrics:
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
         summarize=True,
+        handle_empty_results='error'
     ):
+        """
+        Calculates speed evaluation metrics across multiple benchmark model results.
+
+        Args:
+            benchmark_results: List of BenchmarkModelResult objects.
+            eval_methods: List of evaluation methods to use (e.g., ['elapsed_time']).
+            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
+            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
+            handle_empty_results (str): How to handle models with no successful results for a metric.
+                'error': Raise KeyError (default).
+                'ignore': Skip the model for that metric's summary.
+                'zero': Assign 0.0 for the summary statistics.
+
+        Returns:
+            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        """
+        allowed_handling = ['error', 'ignore', 'zero']
+        if handle_empty_results not in allowed_handling:
+            raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
+
         eval_results = []
         for benchmark_result in benchmark_results:
             eval_results.append(
@@ -178,7 +235,7 @@ class SpeedMetrics:
                 )
             )
 
-        if not summarize:
+        if summarize is False:
             return eval_results
 
         summarized_results = {}
@@ -188,9 +245,23 @@ class SpeedMetrics:
                 summarized_results[eval_method][summarization_method] = {}
                 for idx, eval_result in enumerate(eval_results):
                     model_name = benchmark_results[idx].model.name
-                    summarized_results[eval_method][summarization_method][
-                        model_name
-                    ] = eval_result[eval_method][summarization_method]
+                    if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
+                        summarized_results[eval_method][summarization_method][
+                            model_name
+                        ] = eval_result[eval_method][summarization_method]
+                    else:
+                        if handle_empty_results == 'error':
+                            raise KeyError(
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
+                                f"This often happens with 0 successful results. "
+                                f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
+                            )
+                        elif handle_empty_results == 'ignore':
+                            pass
+                        elif handle_empty_results == 'zero':
+                            summarized_results[eval_method][summarization_method][
+                                model_name
+                            ] = 0.0
 
         return summarized_results
 
@@ -247,7 +318,28 @@ class CostMetrics:
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
         summarize=True,
+        handle_empty_results='error'
     ):
+        """
+        Calculates cost evaluation metrics across multiple benchmark model results.
+
+        Args:
+            benchmark_results: List of BenchmarkModelResult objects.
+            eval_methods: List of evaluation methods to use (e.g., ['cost']).
+            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
+            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
+            handle_empty_results (str): How to handle models with no cost data for a metric.
+                'error': Raise KeyError (default).
+                'ignore': Skip the model for that metric's summary.
+                'zero': Assign None for the summary statistics (as cost=0 is ambiguous).
+
+        Returns:
+            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        """
+        allowed_handling = ['error', 'ignore', 'zero']
+        if handle_empty_results not in allowed_handling:
+            raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
+
         eval_results = []
         for benchmark_result in benchmark_results:
             eval_results.append(
@@ -266,84 +358,27 @@ class CostMetrics:
             for summarization_method in summarization_methods:
                 summarized_results[eval_method][summarization_method] = {}
                 for idx, eval_result in enumerate(eval_results):
-                    # Handle cases where a model might not have cost results (e.g., all failed)
-                    if eval_method in eval_result and summarization_method in eval_result[eval_method]:
-                        model_name = benchmark_results[idx].model.name
+                    model_name = benchmark_results[idx].model.name
+                    
+                    if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
                         summarized_results[eval_method][summarization_method][
                             model_name
                         ] = eval_result[eval_method][summarization_method]
-                    else: 
-                        # Ensure model entry exists even if no valid cost data
-                        model_name = benchmark_results[idx].model.name
-                        summarized_results[eval_method][summarization_method][model_name] = None 
+                    else:
+                        # Case: Metric or summary was not calculated (likely due to zero results or no cost data)
+                        if handle_empty_results == 'error':
+                            raise KeyError(
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
+                                f"This often happens with 0 successful results or missing cost data. "
+                                f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
+                            )
+                        elif handle_empty_results == 'ignore':
+                            # Do nothing, the model's entry for this metric/summary will be missing
+                            pass
+                        elif handle_empty_results == 'zero':
+                            # Assign None as the summary statistic for cost when results are missing
+                            summarized_results[eval_method][summarization_method][
+                                model_name
+                            ] = None # Use None instead of 0.0 for cost
 
         return summarized_results
-
-
-def calculate_efficiency_metrics(
-    string_metrics_results: dict,
-    speed_metrics_results: dict,
-    cost_metrics_results: dict,
-    accuracy_method: str = "levenshtein_ratio",
-    accuracy_summary: str = "median",
-    speed_summary: str = "median",
-    cost_summary: str = "median",
-) -> dict:
-    """Calculates speed and cost efficiency metrics.
-
-    Args:
-        string_metrics_results: Results from StringMetrics.from_benchmark_model_results.
-        speed_metrics_results: Results from SpeedMetrics.from_benchmark_model_results.
-        cost_metrics_results: Results from CostMetrics.from_benchmark_model_results.
-        accuracy_method: The string metric to use for accuracy (e.g., 'levenshtein_ratio').
-        accuracy_summary: The summary statistic for accuracy (e.g., 'median', 'average').
-        speed_summary: The summary statistic for speed (e.g., 'median', 'average').
-        cost_summary: The summary statistic for cost (e.g., 'median', 'average').
-
-    Returns:
-        A dictionary containing 'speed_efficiency' and 'cost_efficiency',
-        each mapping model names to their calculated efficiency.
-    """
-    efficiency_results = {"speed_efficiency": {}, "cost_efficiency": {}}
-
-    # Ensure the specified metrics/summaries exist
-    if accuracy_method not in string_metrics_results:
-        raise ValueError(f"Accuracy method '{accuracy_method}' not found in string metrics results.")
-    if accuracy_summary not in string_metrics_results[accuracy_method]:
-        raise ValueError(f"Accuracy summary '{accuracy_summary}' not found for method '{accuracy_method}'.")
-    
-    if "elapsed_time" not in speed_metrics_results:
-         raise ValueError("'elapsed_time' not found in speed metrics results.")
-    if speed_summary not in speed_metrics_results["elapsed_time"]:
-        raise ValueError(f"Speed summary '{speed_summary}' not found for 'elapsed_time'.")
-
-    if "cost" not in cost_metrics_results:
-         raise ValueError("'cost' not found in cost metrics results.")
-    if cost_summary not in cost_metrics_results["cost"]:
-         raise ValueError(f"Cost summary '{cost_summary}' not found for 'cost'.")
-
-
-    accuracy_data = string_metrics_results[accuracy_method][accuracy_summary]
-    speed_data = speed_metrics_results["elapsed_time"][speed_summary]
-    cost_data = cost_metrics_results["cost"][cost_summary]
-
-    all_models = set(accuracy_data.keys()) | set(speed_data.keys()) | set(cost_data.keys())
-
-    for model_name in all_models:
-        accuracy = accuracy_data.get(model_name)
-        speed = speed_data.get(model_name)
-        cost = cost_data.get(model_name)
-
-        # Calculate Speed Efficiency
-        if accuracy is not None and speed is not None and speed > 0:
-            efficiency_results["speed_efficiency"][model_name] = accuracy / speed
-        else:
-            efficiency_results["speed_efficiency"][model_name] = None  # Indicate calculation not possible
-
-        # Calculate Cost Efficiency
-        if accuracy is not None and cost is not None and cost > 0:
-            efficiency_results["cost_efficiency"][model_name] = accuracy / cost
-        else:
-            efficiency_results["cost_efficiency"][model_name] = None # Indicate calculation not possible
-
-    return efficiency_results

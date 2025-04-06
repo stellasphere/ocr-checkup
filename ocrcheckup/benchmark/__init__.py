@@ -89,29 +89,28 @@ class Benchmark:
             print(f"- Version: {model_result.model.version}")
 
             if use_autosave:
-                autosaved_model_results = {}
+                autosaved_model_result = None
                 autosaved_model_results_path = os.path.join(autosave_dir, f"{model_result.model.name}_{model_result.model.version}")
                 if autosave_dir is not None and os.path.exists(autosaved_model_results_path):
                     try:
-                        autosaved_model_results = BenchmarkModelResult.load(autosaved_model_results_path)
-                    except:
-                        print(f"Error loading autosaved model results at", autosaved_model_results_path)
+                        autosaved_model_result = BenchmarkModelResult.load(autosaved_model_results_path)
+                        print(f"Found potential autosaved result at: {autosaved_model_results_path}")
+                    except Exception as e:
+                        print(f"Error loading autosaved model results at {autosaved_model_results_path}: {e}")
                         traceback.print_exc()
                 else:
-                    print(f"Could not find any autosaved model results at", autosaved_model_results_path)
+                    print(f"Could not find any autosaved model results at {autosaved_model_results_path}")
 
-                if model_result.model.name in autosaved_model_results:
-                    if (
-                        model_result.model.version
-                        in autosaved_model_results[model_result.model.name]
-                    ):
-                        autosaved_model_result = autosaved_model_results[
-                            model_result.model.name
-                        ][model_result.model.version]
+                if autosaved_model_result is not None:
+                    valid_autosave = True
 
-                        # Autosave validation
-                        valid_autosave = True
-
+                    if autosaved_model_result.benchmark.name != self.name:
+                         print(
+                             f"Validation Error: Autosaved benchmark name ('{autosaved_model_result.benchmark.name}') "
+                             f"does not match current benchmark name ('{self.name}')"
+                         )
+                         valid_autosave = False
+                    else:
                         ran_images = len(autosaved_model_result.results) + len(
                             autosaved_model_result.failed
                         )
@@ -121,15 +120,14 @@ class Benchmark:
                             )
                             valid_autosave = False
 
-                        if valid_autosave:
-                            print(
-                                f"Using a autosaved result (Model: {autosaved_model_result.model.name}) (Version: {autosaved_model_result.model.version})"
-                            )
-                            model_results[model_idx] = autosaved_model_result
-
-                            continue
-                        else:
-                            print("Not a valid autosaved result. Running benchmark")
+                    if valid_autosave:
+                        print(
+                            f"Using a valid autosaved result (Model: {autosaved_model_result.model.name}) (Version: {autosaved_model_result.model.version})"
+                        )
+                        model_results[model_idx] = autosaved_model_result
+                        continue
+                    else:
+                        print("Not a valid autosaved result. Running benchmark")
 
             if run_models is False:
                 print("Skipping model inference (run_models=False)")

@@ -23,7 +23,7 @@ class OCRModelResponse:
         self.success = success
         self.error_message = error_message
 
-        if start_time is not None or elapsed_time is not None:
+        if success is True and (start_time is not None or elapsed_time is not None):
             raise Exception(
                 "Start time and elapsed time should be set by the OCRBaseModel implemenation"
             )
