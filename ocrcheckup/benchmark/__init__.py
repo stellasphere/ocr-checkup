@@ -252,7 +252,11 @@ class BenchmarkModelResult:
         file_path = os.path.join(dir, path)
 
         if create_dir:
-            os.makedirs(dir, exist_ok=True)
+            # Get the directory containing the target file
+            file_dir = os.path.dirname(file_path)
+            # Create the full directory path if it doesn't exist
+            if file_dir: # Ensure file_dir is not empty if file_path is just a filename
+                os.makedirs(file_dir, exist_ok=True)
 
         mode = "wb" if overwrite else "xb"
         try:
@@ -263,10 +267,13 @@ class BenchmarkModelResult:
             print(saved.__dict__)
             assert len(saved.results) == len(self.results)
             return True
-        except BaseException as e:
+        except FileExistsError: # More specific exception handling
+             print(f"Failed to save result for {path} because file exists and overwrite is False.")
+             return False
+        except Exception as e: # Catch other potential exceptions
             print(f"Failed to save model result to {file_path}")
-            print("Error:", e)
-            traceback.print_exc()
+            print(f"Error: {e}")
+            # traceback.print_exc() # Optional: Keep for detailed debugging if needed
             return False
 
     def load(path):
