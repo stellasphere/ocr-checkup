@@ -10,14 +10,18 @@ import time
 import numpy as np
 import supervision as sv
 import traceback
-from typing import List, Union
+from typing import List, Union, Optional
+import json
+from roboflow import Roboflow
+import cv2
 
 
 class Benchmark:
-    def __init__(self, name, images=[], annotations=[]):
+    def __init__(self, name, images=[], annotations=[], metadata=[]):
         self.name = name
         self.images = images
         self.annotations = annotations
+        self.metadata = metadata
 
     def benchmark(
         self,
@@ -59,7 +63,7 @@ class Benchmark:
                 for model_idx, model in enumerate(models):
                     model_info = model.info()
                     autosaved_model_results_path = os.path.join(
-                        autosave_dir, f"{model_info.name}_{model_info.version}"
+                        autosave_dir, f"{model_info.name}-{model_info.version}"
                     )
 
                     if os.path.exists(autosaved_model_results_path):
@@ -77,14 +81,18 @@ class Benchmark:
 
                             if not should_skip_loading:
                                 valid_autosave = True
-                                if autosaved_model_result.benchmark.name != self.name:
-                                    print(f"    Validation Error: Benchmark name mismatch ('{autosaved_model_result.benchmark.name}' vs '{self.name}')")
+                                if not hasattr(autosaved_model_result, 'benchmark') or autosaved_model_result.benchmark.name != self.name:
+                                    print(f"    Validation Error: Benchmark name mismatch ('{getattr(autosaved_model_result, 'benchmark', None)}' vs '{self.name}')")
                                     valid_autosave = False
+                                elif not hasattr(autosaved_model_result, 'indexed_results') or not isinstance(autosaved_model_result.indexed_results, list):
+                                     print(f"    Validation Error: Loaded result missing or invalid 'indexed_results'.")
+                                     valid_autosave = False
                                 else:
-                                    ran_images = len(autosaved_model_result.results) + len(autosaved_model_result.failed)
-                                    if ran_images != len(self.images):
-                                        print(f"    Validation Error: Image count mismatch (benchmark: {len(self.images)}, autosave: {ran_images})")
-                                        valid_autosave = False
+                                     ran_images = len(autosaved_model_result.indexed_results)
+                                     expected_images = len(self.images)
+                                     if ran_images != expected_images:
+                                         print(f"    Validation Error: Image count mismatch (autosave: {ran_images}, expected: {expected_images})")
+                                         valid_autosave = False
 
                                 if valid_autosave:
                                     print(f"    Using valid autosaved result for {model_info.name} v{model_info.version}.")
@@ -117,19 +125,19 @@ class Benchmark:
 
             if run_this_model:
                 print(f"  Running benchmark for {model_info.name}...")
-                model_result.results = np.array([])
-                model_result.start_times = np.array([])
-                model_result.elapsed_times = np.array([])
-                model_result.failed = np.array([])
+                if len(model_result.indexed_results) != len(self.images):
+                     print(f"Warning: Correcting size of indexed_results for {model_info.name}")
+                     model_result.indexed_results = [None] * len(self.images)
 
                 for ground_idx, image in tqdm(enumerate(self.images), total=len(self.images), desc=f"  {model_info.name}"):
                     model_image_result = model.run_for_eval(image)
-                    model_result.add_result(model_image_result)
+                    model_result.add_result(ground_idx, model_image_result)
 
                 print(f"  Model {model_info.name} finished testing.")
-                total_processed = len(model_result.results) + len(model_result.failed)
-                success_percentage = (len(model_result.results) / total_processed * 100) if total_processed > 0 else 0
-                print(f"  Successfully Processed: {success_percentage:.2f}%")
+                total_processed = sum(1 for res in model_result.indexed_results if res is not None)
+                total_successful = sum(1 for res in model_result.indexed_results if res is not None and res.success)
+                success_percentage = (total_successful / total_processed * 100) if total_processed > 0 else 0
+                print(f"  Successfully Processed: {success_percentage:.2f}% ({total_successful}/{total_processed})")
 
                 if create_autosave:
                     should_overwrite_save = False
@@ -141,7 +149,7 @@ class Benchmark:
                     print(f"  Attempting to save result for {model_info.name} (overwrite={should_overwrite_save})...")
                     saved_path = model_result.save(
                         autosave_dir,
-                        f"{model_info.name}_{model_info.version}",
+                        path=None,
                         overwrite=should_overwrite_save,
                     )
                     if saved_path:
@@ -160,7 +168,7 @@ class Benchmark:
                          print(f"  Force-saving loaded result for {model_info.name} due to overwrite flag...")
                          saved_path = model_result.save(
                              autosave_dir,
-                             f"{model_info.name}_{model_info.version}",
+                             path=None,
                              overwrite=True,
                          )
                          if saved_path:
@@ -208,54 +216,121 @@ class Benchmark:
 
         return cls(name, images, annotations)
 
+    @classmethod
+    def from_roboflow_dataset(cls, name: str, api_key: str, workspace: str, project: str, version: int, variant: str = "jsonl"):
+        """
+        Creates a Benchmark instance from a Roboflow dataset.
+
+        Downloads the specified dataset version using the Roboflow API,
+        then loads images and annotations from the 'test' split.
+        Assumes the 'jsonl' variant where annotations are in 'annotations.jsonl'
+        and contain 'image' and 'suffix' keys.
+
+        Args:
+            name (str): The name for this benchmark instance.
+            api_key (str): Your Roboflow API key.
+            workspace (str): The Roboflow workspace ID or URL name.
+            project (str): The Roboflow project ID or URL name.
+            version (int): The dataset version number.
+            variant (str, optional): The dataset variant to download. Defaults to "jsonl".
+
+        Returns:
+            Benchmark: A new Benchmark instance populated with the test data.
+        """
+        print(f"Downloading Roboflow dataset: {workspace}/{project}/{version}")
+        rf = Roboflow(api_key=api_key)
+        project_obj = rf.workspace(workspace).project(project)
+        version_obj = project_obj.version(version)
+        dataset = version_obj.download("jsonl", f"datasets/{name}")
+
+        test_dir = os.path.join(dataset.location, "test")
+        annotations_path = os.path.join(test_dir, "annotations.jsonl")
+
+        if not os.path.exists(annotations_path):
+            raise FileNotFoundError(f"Annotations file not found at expected location: {annotations_path}")
+
+        images = []
+        annotations = []
+        metadata_list = []
+
+        print(f"Loading data from: {annotations_path}")
+        with open(annotations_path, 'r') as f:
+            for line in tqdm(f, desc=f"Processing {name} test set"):
+                try:
+                    data = json.loads(line.strip())
+                    image_filename = data.get("image")
+                    ground_truth = data.get("suffix")
+
+                    if not image_filename or ground_truth is None:
+                        print(f"Warning: Skipping line due to missing 'image' or 'suffix': {line.strip()}")
+                        raise Exception(f"Missing 'image' or 'suffix': {line.strip()}")
+
+                    image_path = os.path.join(test_dir, image_filename)
+                    if not os.path.exists(image_path):
+                        print(f"Warning: Image file not found, skipping: {image_path}")
+                        raise Exception(f"Image file not found: {image_path}")
+
+                    image = cv2.imread(image_path)
+                    if image is None:
+                        print(f"Warning: Failed to load image, skipping: {image_path}")
+                        raise Exception(f"Failed to load image: {image_path}")
+
+                    images.append(image)
+                    annotations.append(ground_truth)
+
+                    metadata_item = {}
+                    if image_filename:
+                         metadata_item['image_filename'] = image_filename
+
+                    for key, value in data.items():
+                        if key not in ["image", "suffix"]:
+                             metadata_item[key] = value
+                    metadata_list.append(metadata_item)
+
+                except json.JSONDecodeError:
+                    print(f"Warning: Skipping invalid JSON line: {line.strip()}")
+                except Exception as e:
+                    print(f"Warning: Error processing line '{line.strip()}': {e}")
+
+        print(f"Loaded {len(images)} images, annotations, and metadata entries for benchmark '{name}'.")
+        return cls(name, images, annotations, metadata_list)
+
 
 class BenchmarkModelResult:
     def __init__(
         self,
         benchmark: Benchmark,
         model: OCRBaseModel,
-        start_times=[],
-        elapsed_times=[],
-        results=[],
-        created=None,
+        created: Optional[float] = None,
+        indexed_results: Optional[List[Optional[OCRModelResponse]]] = None
     ):
-
         self.benchmark = benchmark
         self.model = model.info()
-        self.start_times = np.array(start_times)
-        self.elapsed_times = np.array(elapsed_times)
-        self.results = np.array(results)
         self.created = created if created is not None else time.time()
-        self.failed = np.array([])
+
+        num_images = len(benchmark.images) if benchmark and hasattr(benchmark, 'images') else 0
+        self.indexed_results: List[Optional[OCRModelResponse]] = indexed_results if indexed_results is not None else [None] * num_images
+
         self.id = f"{self.benchmark.name}_{self.model.name}-{self.model.version}_{self.created}"
 
-    def add_result(self, result: OCRModelResponse, verbose=False):
+    def add_result(self, image_index: int, result: OCRModelResponse, verbose=False):
         if verbose:
-            print("Result:", pretty_json(result.__dict__))
+            print(f"Result for index {image_index}:", pretty_json(result.__dict__))
 
-        if result.success is False:
-            if verbose:
-                print("Failed, adding to failed list")
-            self.failed = np.append(self.failed, result)
-            return
-
-        if verbose:
-            print("Success, adding to results list")
-        self.start_times = np.append(self.start_times, result.start_time)
-        self.elapsed_times = np.append(self.elapsed_times, result.elapsed_time)
-        self.results = np.append(self.results, result.prediction)
+        if 0 <= image_index < len(self.indexed_results):
+            self.indexed_results[image_index] = result
+        else:
+            print(f"Warning: image_index {image_index} out of bounds for indexed_results (size: {len(self.indexed_results)}). Result not added.")
 
     def save(self, dir="", path=None, overwrite=False, create_dir=True):
         if path is None:
-            path = self.id
+            path = f"{self.model.name}_{self.model.version}"
 
         file_path = os.path.join(dir, path)
 
         if create_dir:
-            # Get the directory containing the target file
             file_dir = os.path.dirname(file_path)
-            # Create the full directory path if it doesn't exist
-            if file_dir: # Ensure file_dir is not empty if file_path is just a filename
+            if file_dir:
                 os.makedirs(file_dir, exist_ok=True)
 
         mode = "wb" if overwrite else "xb"
@@ -263,35 +338,73 @@ class BenchmarkModelResult:
             with open(file_path, mode) as outp:
                 dill.dump(self, outp)
 
-            saved = BenchmarkModelResult.load(file_path)
-            print(saved.__dict__)
-            assert len(saved.results) == len(self.results)
-            return True
-        except FileExistsError: # More specific exception handling
-             print(f"Failed to save result for {path} because file exists and overwrite is False.")
-             return False
-        except Exception as e: # Catch other potential exceptions
+            try:
+                saved = BenchmarkModelResult.load(file_path)
+                assert hasattr(saved, 'indexed_results'), "Loaded object missing 'indexed_results'"
+                assert isinstance(saved.indexed_results, list), "'indexed_results' is not a list"
+                assert len(saved.indexed_results) == len(self.indexed_results), \
+                    f"Length mismatch: loaded {len(saved.indexed_results)}, expected {len(self.indexed_results)}"
+                return file_path
+            except Exception as load_err:
+                 print(f"Warning: Saved file {file_path}, but failed validation check on reload: {load_err}")
+                 return None
+
+        except FileExistsError:
+             return None
+        except Exception as e:
             print(f"Failed to save model result to {file_path}")
             print(f"Error: {e}")
-            # traceback.print_exc() # Optional: Keep for detailed debugging if needed
-            return False
+            return None
 
+    @staticmethod
     def load(path):
         with open(path, "rb") as inp:
             data = dill.load(inp)
+        if not isinstance(data, BenchmarkModelResult):
+            raise TypeError(f"Loaded object is not of type BenchmarkModelResult: {type(data)}")
+        if not hasattr(data, 'indexed_results'):
+             raise AttributeError(f"Loaded BenchmarkModelResult is missing 'indexed_results' attribute from path: {path}")
         return data
 
     def showcase(self, max_count=12, size=(12, 12), grid_size=(3, 4)):
-        assert max_count <= grid_size[0] * grid_size[1]
+        if max_count > len(self.indexed_results):
+             max_count = len(self.indexed_results)
+             print(f"Warning: max_count reduced to {max_count} (number of results)")
+
+        if max_count == 0:
+             print("No results to showcase.")
+             return
+
+        assert max_count <= grid_size[0] * grid_size[1], \
+            f"Grid size {grid_size} is too small for max_count {max_count}"
 
         images = self.benchmark.images[:max_count]
-        titles = self.results.tolist()[:max_count]
+
+        titles = []
+        for i in range(max_count):
+             result = self.indexed_results[i]
+             if result and result.success:
+                 titles.append(result.prediction)
+             elif result and not result.success:
+                  titles.append(f"FAILED: {result.error_message[:30]}...")
+             else:
+                  titles.append("MISSING")
 
         sv.plot_images_grid(images, grid_size=grid_size, titles=titles, size=size)
 
     def failed_percent(self):
-        failed = self.failed / (self.failed + len(self.results))
-        return failed
+        if not self.indexed_results:
+            return 0.0
+
+        num_images = len(self.indexed_results)
+        num_failed = sum(1 for res in self.indexed_results if res is not None and not res.success)
+
+        num_processed = sum(1 for res in self.indexed_results if res is not None)
+
+        if num_processed == 0:
+             return 0.0
+
+        return (num_failed / num_processed) * 100 if num_processed > 0 else 0.0
 
 class BenchmarkResults(list):
     def __init__(self, results: List[BenchmarkModelResult]):

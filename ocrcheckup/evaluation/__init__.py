@@ -1,6 +1,7 @@
 import Levenshtein
 import statistics
-from typing import List, Any
+from typing import List, Any, Optional
+from ..benchmark.model import OCRModelResponse
 
 
 class ValuesSummarization:
@@ -66,34 +67,68 @@ class StringMetrics:
     def evaluate(self, methods=EVALUATION_METHODS):
         return tuple(getattr(self, method)() for method in methods)
 
+    @staticmethod
     def from_benchmark_model_result(
         benchmark_result,
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
     ):
+        """Calculates string metrics for a single BenchmarkModelResult using indexed_results."""
         eval_results = {}
-        for idx, result in enumerate(benchmark_result.results):
-            ground_truth = benchmark_result.benchmark.annotations[idx]
+        # Initialize score lists within eval_results
+        for method in eval_methods:
+            eval_results.setdefault(method, {})
+            eval_results[method]["scores"] = []
 
-            result_evaluated = StringMetrics(result, ground_truth).evaluate(
-                eval_methods
-            )
-            for method_idx, method_score in enumerate(result_evaluated):
-                eval_method = eval_methods[method_idx]
-                eval_results.setdefault(eval_method, {})
-                eval_results[eval_method].setdefault("scores", [])
-                eval_results[eval_method]["scores"].append(method_score)
+        # Check if indexed_results exists and is iterable
+        if not hasattr(benchmark_result, 'indexed_results') or not isinstance(benchmark_result.indexed_results, list):
+             print(f"Warning: BenchmarkModelResult for model {getattr(benchmark_result.model, 'name', '?')} missing or invalid indexed_results. Skipping string metric calculation.")
+             # Return empty/default structure to avoid downstream errors
+             for method in eval_methods:
+                 for sm_method in summarization_methods:
+                      eval_results[method][sm_method] = None # Or 0.0 depending on desired handling
+             return eval_results
 
-        for eval_method, eval_result in eval_results.items():
-            summarized = ValuesSummarization(eval_result["scores"]).summarize(
-                summarization_methods
-            )
+        # Iterate through indexed_results
+        for idx, response in enumerate(benchmark_result.indexed_results):
+            # Check if response exists and was successful
+            if response is not None and isinstance(response, OCRModelResponse) and response.success:
+                try:
+                    ground_truth = benchmark_result.benchmark.annotations[idx]
+                    prediction = response.prediction
 
-            for idx, summarization_method in enumerate(summarization_methods):
-                eval_results[eval_method][summarization_method] = summarized[idx]
+                    if prediction is None: # Should not happen if success is True, but check
+                        print(f"Warning: Successful response at index {idx} for model {benchmark_result.model.name} has None prediction. Skipping.")
+                        continue
+
+                    # Calculate metrics for this prediction/ground_truth pair
+                    result_evaluated = StringMetrics(prediction, ground_truth).evaluate(eval_methods)
+
+                    for method_idx, method_score in enumerate(result_evaluated):
+                        eval_method = eval_methods[method_idx]
+                        eval_results[eval_method]["scores"].append(method_score)
+
+                except IndexError:
+                     print(f"Warning: Annotation index {idx} out of bounds. Skipping string metric calculation for this item.")
+                except Exception as e:
+                     print(f"Warning: Error processing string metrics for index {idx}, model {benchmark_result.model.name}: {e}")
+            # else: response was None, not OCRModelResponse, or not successful - skip metric calculation
+
+        # Summarize collected scores
+        for eval_method, eval_data in eval_results.items():
+            scores = eval_data.get("scores", [])
+            if scores: # Only summarize if there are scores
+                summarized = ValuesSummarization(scores).summarize(summarization_methods)
+                for idx, summarization_method in enumerate(summarization_methods):
+                    eval_results[eval_method][summarization_method] = summarized[idx]
+            else:
+                 # Handle case with no successful results for this metric
+                 for summarization_method in summarization_methods:
+                     eval_results[eval_method][summarization_method] = None # Or 0.0, depending on desired handling
 
         return eval_results
 
+    @staticmethod
     def from_benchmark_model_results(
         benchmark_results,
         eval_methods=EVALUATION_METHODS,
@@ -103,103 +138,117 @@ class StringMetrics:
     ):
         """
         Calculates string evaluation metrics across multiple benchmark model results.
-
-        Args:
-            benchmark_results: List of BenchmarkModelResult objects.
-            eval_methods: List of evaluation methods to use (e.g., ['levenshtein_ratio']).
-            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
-            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
-            handle_empty_results (str): How to handle models with no successful results for a metric.
-                'error': Raise KeyError (default).
-                'ignore': Skip the model for that metric's summary.
-                'zero': Assign 0.0 for the summary statistics.
-
-        Returns:
-            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        Uses the static from_benchmark_model_result method internally.
+        (Handles aggregation and error/ignore/zero logic for summaries)
         """
         allowed_handling = ['error', 'ignore', 'zero']
         if handle_empty_results not in allowed_handling:
             raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
 
-        eval_results = []
+        # --- Use the updated from_benchmark_model_result --- #
+        eval_results_per_model = []
+        valid_benchmark_results = [] # Keep track of results we could process
         for idx, benchmark_result in enumerate(benchmark_results):
-            eval_results.append(
-                StringMetrics.from_benchmark_model_result(
-                    benchmark_result, eval_methods, summarization_methods
-                )
-            )
+             # Basic check if it looks like a valid BenchmarkModelResult
+             if hasattr(benchmark_result, 'model') and hasattr(benchmark_result, 'indexed_results'):
+                 model_eval_results = StringMetrics.from_benchmark_model_result(
+                     benchmark_result, eval_methods, summarization_methods
+                 )
+                 eval_results_per_model.append(model_eval_results)
+                 valid_benchmark_results.append(benchmark_result)
+             else:
+                  print(f"Warning: Skipping benchmark result at index {idx} due to missing attributes (model or indexed_results).")
 
-        if summarize is False:
-            return eval_results
+        if not summarize:
+            return eval_results_per_model # Return list of results per model
 
+        # --- Aggregation logic (remains largely the same, but uses valid_benchmark_results) ---
         summarized_results = {}
         for eval_method in eval_methods:
             summarized_results[eval_method] = {}
             for summarization_method in summarization_methods:
                 summarized_results[eval_method][summarization_method] = {}
-                for idx, eval_result in enumerate(eval_results):
-                    model_name = benchmark_results[idx].model.name
+                # Iterate through the results we actually processed
+                for idx, eval_result in enumerate(eval_results_per_model):
+                    # Get model name from the corresponding valid benchmark result
+                    model_name = valid_benchmark_results[idx].model.name
 
-                    if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
-                        summarized_results[eval_method][summarization_method][
-                            model_name
-                        ] = eval_result[eval_method][summarization_method]
+                    # Check if the metric and summary method exist AND the value is not None
+                    metric_summary_value = eval_result.get(eval_method, {}).get(summarization_method)
+
+                    if metric_summary_value is not None:
+                        summarized_results[eval_method][summarization_method][model_name] = metric_summary_value
                     else:
+                        # Handle missing summary based on handle_empty_results
                         if handle_empty_results == 'error':
                             raise KeyError(
-                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found or was None for model '{model_name}'. "
                                 f"This often happens with 0 successful results. "
                                 f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
                             )
                         elif handle_empty_results == 'ignore':
-                            pass
+                            pass # Skip adding the entry for this model/metric/summary
                         elif handle_empty_results == 'zero':
-                            summarized_results[eval_method][summarization_method][
-                                model_name
-                            ] = 0.0
-                            
+                            summarized_results[eval_method][summarization_method][model_name] = 0.0
+
         return summarized_results
-    
+
 
 class SpeedMetrics:
     EVALUATION_METHODS = ["elapsed_time"]
 
-    def __init__(self, elapsed_times):
-        self.elapsed_times = elapsed_times
-
-    def elapsed_time(self):
-        return self.elapsed_times
-
-    def evaluate(self, methods=EVALUATION_METHODS):
-        return tuple(getattr(self, method)() for method in methods)
-
+    @staticmethod
     def from_benchmark_model_result(
         benchmark_result,
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
     ):
+        """Calculates speed metrics for a single BenchmarkModelResult using indexed_results."""
         eval_results = {}
-        for idx, result in enumerate(benchmark_result.elapsed_times):
+        all_elapsed_times = [] # Collect all valid elapsed times
 
-            result_evaluated = SpeedMetrics(result).evaluate(
-                eval_methods
-            )
-            for method_idx, method_score in enumerate(result_evaluated):
-                eval_method = eval_methods[method_idx]
-                eval_results.setdefault(eval_method, {})
-                eval_results[eval_method].setdefault("scores", [])
-                eval_results[eval_method]["scores"].append(method_score)
+        # Check for indexed_results
+        if not hasattr(benchmark_result, 'indexed_results') or not isinstance(benchmark_result.indexed_results, list):
+             print(f"Warning: BenchmarkModelResult for model {getattr(benchmark_result.model, 'name', '?')} missing or invalid indexed_results. Skipping speed metric calculation.")
+             # Return empty/default structure
+             for method in eval_methods:
+                 eval_results.setdefault(method, {})
+                 eval_results[method]["scores"] = []
+                 for sm_method in summarization_methods:
+                     eval_results[method][sm_method] = None
+             return eval_results
 
-        for eval_method, eval_result in eval_results.items():
-            summarized = ValuesSummarization(eval_result["scores"]).summarize(
-                summarization_methods
-            )
+        # Iterate through indexed_results
+        for idx, response in enumerate(benchmark_result.indexed_results):
+             # Check if response exists, is OCRModelResponse, and has elapsed_time
+             if response is not None and isinstance(response, OCRModelResponse) and hasattr(response, 'elapsed_time') and response.elapsed_time is not None:
+                 all_elapsed_times.append(response.elapsed_time)
+             # else: Skip entries without valid elapsed time
 
+        # Populate eval_results structure (currently only 'elapsed_time')
+        eval_method = eval_methods[0] # Assuming only 'elapsed_time'
+        eval_results.setdefault(eval_method, {})
+        eval_results[eval_method]["scores"] = all_elapsed_times
+
+        # Summarize collected scores
+        if all_elapsed_times:
+            summarized = ValuesSummarization(all_elapsed_times).summarize(summarization_methods)
             for idx, summarization_method in enumerate(summarization_methods):
                 eval_results[eval_method][summarization_method] = summarized[idx]
+        else:
+            # Handle case with no valid elapsed times
+            for summarization_method in summarization_methods:
+                eval_results[eval_method][summarization_method] = None # Or 0.0?
+
+        # Ensure structure consistency for other potential future methods
+        for method in eval_methods:
+             if method not in eval_results:
+                  eval_results[method] = {sm: None for sm in summarization_methods}
+                  eval_results[method]["scores"] = []
 
         return eval_results
 
+    @staticmethod
     def from_benchmark_model_results(
         benchmark_results,
         eval_methods=EVALUATION_METHODS,
@@ -209,59 +258,51 @@ class SpeedMetrics:
     ):
         """
         Calculates speed evaluation metrics across multiple benchmark model results.
-
-        Args:
-            benchmark_results: List of BenchmarkModelResult objects.
-            eval_methods: List of evaluation methods to use (e.g., ['elapsed_time']).
-            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
-            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
-            handle_empty_results (str): How to handle models with no successful results for a metric.
-                'error': Raise KeyError (default).
-                'ignore': Skip the model for that metric's summary.
-                'zero': Assign 0.0 for the summary statistics.
-
-        Returns:
-            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        Uses the static from_benchmark_model_result method internally.
         """
         allowed_handling = ['error', 'ignore', 'zero']
         if handle_empty_results not in allowed_handling:
             raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
 
-        eval_results = []
-        for benchmark_result in benchmark_results:
-            eval_results.append(
-                SpeedMetrics.from_benchmark_model_result(
-                    benchmark_result, eval_methods, summarization_methods
-                )
-            )
+        # --- Use the updated from_benchmark_model_result --- #
+        eval_results_per_model = []
+        valid_benchmark_results = []
+        for idx, benchmark_result in enumerate(benchmark_results):
+             if hasattr(benchmark_result, 'model') and hasattr(benchmark_result, 'indexed_results'):
+                 model_eval_results = SpeedMetrics.from_benchmark_model_result(
+                     benchmark_result, eval_methods, summarization_methods
+                 )
+                 eval_results_per_model.append(model_eval_results)
+                 valid_benchmark_results.append(benchmark_result)
+             else:
+                 print(f"Warning: Skipping benchmark result at index {idx} due to missing attributes (model or indexed_results).")
 
-        if summarize is False:
-            return eval_results
 
+        if not summarize:
+            return eval_results_per_model
+
+        # --- Aggregation logic (similar to StringMetrics) ---
         summarized_results = {}
         for eval_method in eval_methods:
             summarized_results[eval_method] = {}
             for summarization_method in summarization_methods:
                 summarized_results[eval_method][summarization_method] = {}
-                for idx, eval_result in enumerate(eval_results):
-                    model_name = benchmark_results[idx].model.name
-                    if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
-                        summarized_results[eval_method][summarization_method][
-                            model_name
-                        ] = eval_result[eval_method][summarization_method]
+                for idx, eval_result in enumerate(eval_results_per_model):
+                    model_name = valid_benchmark_results[idx].model.name
+                    metric_summary_value = eval_result.get(eval_method, {}).get(summarization_method)
+
+                    if metric_summary_value is not None:
+                        summarized_results[eval_method][summarization_method][model_name] = metric_summary_value
                     else:
                         if handle_empty_results == 'error':
                             raise KeyError(
-                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
-                                f"This often happens with 0 successful results. "
-                                f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found or was None for model '{model_name}'. "
+                                f"Often happens with 0 results. Set handle_empty_results='ignore'/'zero'."
                             )
                         elif handle_empty_results == 'ignore':
                             pass
                         elif handle_empty_results == 'zero':
-                            summarized_results[eval_method][summarization_method][
-                                model_name
-                            ] = 0.0
+                            summarized_results[eval_method][summarization_method][model_name] = 0.0
 
         return summarized_results
 
@@ -270,45 +311,54 @@ class CostMetrics:
     EVALUATION_METHODS = ["cost"]
 
     @staticmethod
-    def cost(cost_value):
-        # Simple method to potentially transform cost if needed in the future
-        # For now, just returns the value if not None
-        return cost_value
-
-    @staticmethod
     def from_benchmark_model_result(
         benchmark_result,
         eval_methods=EVALUATION_METHODS,
         summarization_methods=ValuesSummarization.SUMMARIZATION_METHODS,
     ):
+        """Calculates cost metrics for a single BenchmarkModelResult using indexed_results."""
         eval_results = {}
-        # Access raw results which contain OCRModelResponse objects
-        raw_results = benchmark_result.results_raw 
-        costs = [res.cost for res in raw_results if res.success and res.cost is not None]
-        
-        # Handle case where no successful results with cost exist
-        if not costs:
-             for eval_method in eval_methods:
-                eval_results[eval_method] = {sm: None for sm in summarization_methods}
-                eval_results[eval_method]["scores"] = []
+        all_costs = [] # Collect all valid costs
+
+        # Check for indexed_results
+        if not hasattr(benchmark_result, 'indexed_results') or not isinstance(benchmark_result.indexed_results, list):
+             print(f"Warning: BenchmarkModelResult for model {getattr(benchmark_result.model, 'name', '?')} missing or invalid indexed_results. Skipping cost metric calculation.")
+             # Return empty/default structure
+             for method in eval_methods:
+                 eval_results.setdefault(method, {})
+                 eval_results[method]["scores"] = []
+                 for sm_method in summarization_methods:
+                     eval_results[method][sm_method] = None
              return eval_results
 
+        # Iterate through indexed_results
+        for idx, response in enumerate(benchmark_result.indexed_results):
+             # Check if response exists, is OCRModelResponse, has cost, and cost is not None
+             if response is not None and isinstance(response, OCRModelResponse) and hasattr(response, 'cost') and response.cost is not None:
+                  # Optional: Could also check response.success here if cost should only be counted for successes
+                  all_costs.append(response.cost)
+             # else: Skip entries without valid cost
 
-        # Currently only one method: "cost"
-        eval_method = eval_methods[0]
+        # Populate eval_results structure (currently only 'cost')
+        eval_method = eval_methods[0] # Assuming only 'cost'
         eval_results.setdefault(eval_method, {})
-        eval_results[eval_method]["scores"] = costs
+        eval_results[eval_method]["scores"] = all_costs
 
-        # Summarize the collected costs
-        summarized = ValuesSummarization(costs).summarize(summarization_methods)
-        for idx, summarization_method in enumerate(summarization_methods):
-            eval_results[eval_method][summarization_method] = summarized[idx]
-        
-        # Ensure structure consistency even if other methods were requested (though only 'cost' is supported)
+        # Summarize collected costs
+        if all_costs:
+            summarized = ValuesSummarization(all_costs).summarize(summarization_methods)
+            for idx, summarization_method in enumerate(summarization_methods):
+                eval_results[eval_method][summarization_method] = summarized[idx]
+        else:
+            # Handle case with no valid costs
+            for summarization_method in summarization_methods:
+                eval_results[eval_method][summarization_method] = None # Use None for cost when no data
+
+        # Ensure structure consistency for other potential future methods
         for method in eval_methods:
-            if method not in eval_results:
-                 eval_results[method] = {sm: None for sm in summarization_methods}
-                 eval_results[method]["scores"] = []
+             if method not in eval_results:
+                  eval_results[method] = {sm: None for sm in summarization_methods}
+                  eval_results[method]["scores"] = []
 
         return eval_results
 
@@ -322,63 +372,53 @@ class CostMetrics:
     ):
         """
         Calculates cost evaluation metrics across multiple benchmark model results.
-
-        Args:
-            benchmark_results: List of BenchmarkModelResult objects.
-            eval_methods: List of evaluation methods to use (e.g., ['cost']).
-            summarization_methods: List of methods to summarize scores (e.g., ['average', 'median']).
-            summarize (bool): If True, aggregates results by model name. If False, returns a list of results per model.
-            handle_empty_results (str): How to handle models with no cost data for a metric.
-                'error': Raise KeyError (default).
-                'ignore': Skip the model for that metric's summary.
-                'zero': Assign None for the summary statistics (as cost=0 is ambiguous).
-
-        Returns:
-            dict or list: Summarized results (if summarize=True) or list of individual model results.
+        Uses the static from_benchmark_model_result method internally.
         """
         allowed_handling = ['error', 'ignore', 'zero']
         if handle_empty_results not in allowed_handling:
             raise ValueError(f"handle_empty_results must be one of {allowed_handling}, got '{handle_empty_results}'")
 
-        eval_results = []
-        for benchmark_result in benchmark_results:
-            eval_results.append(
-                CostMetrics.from_benchmark_model_result(
-                    benchmark_result, eval_methods, summarization_methods
-                )
-            )
+        # --- Use the updated from_benchmark_model_result --- #
+        eval_results_per_model = []
+        valid_benchmark_results = []
+        for idx, benchmark_result in enumerate(benchmark_results):
+             if hasattr(benchmark_result, 'model') and hasattr(benchmark_result, 'indexed_results'):
+                 model_eval_results = CostMetrics.from_benchmark_model_result(
+                     benchmark_result, eval_methods, summarization_methods
+                 )
+                 eval_results_per_model.append(model_eval_results)
+                 valid_benchmark_results.append(benchmark_result)
+             else:
+                 print(f"Warning: Skipping benchmark result at index {idx} due to missing attributes (model or indexed_results).")
 
         if not summarize:
-            return eval_results
+            return eval_results_per_model
 
-        # Aggregate results by model
+        # --- Aggregation logic (similar to others, but handle_empty_results='zero' sets None) ---
         summarized_results = {}
-        for eval_method in eval_methods:  # Should typically just be ['cost']
+        for eval_method in eval_methods:
             summarized_results[eval_method] = {}
             for summarization_method in summarization_methods:
                 summarized_results[eval_method][summarization_method] = {}
-                for idx, eval_result in enumerate(eval_results):
-                    model_name = benchmark_results[idx].model.name
-                    
+                for idx, eval_result in enumerate(eval_results_per_model):
+                    model_name = valid_benchmark_results[idx].model.name
+                    metric_summary_value = eval_result.get(eval_method, {}).get(summarization_method)
+
+                    # Check if value exists (could be None if no costs found)
+                    # We store None if calculation resulted in None, otherwise the value
                     if eval_method in eval_result and summarization_method in eval_result.get(eval_method, {}):
-                        summarized_results[eval_method][summarization_method][
-                            model_name
-                        ] = eval_result[eval_method][summarization_method]
+                        summarized_results[eval_method][summarization_method][model_name] = metric_summary_value
                     else:
-                        # Case: Metric or summary was not calculated (likely due to zero results or no cost data)
+                        # Handle cases where the summary wasn't calculated (e.g., issue upstream)
                         if handle_empty_results == 'error':
                             raise KeyError(
-                                f"Metric summary '{eval_method}' -> '{summarization_method}' not found for model '{model_name}'. "
-                                f"This often happens with 0 successful results or missing cost data. "
-                                f"Set handle_empty_results='ignore' or handle_empty_results='zero' to change behavior."
+                                f"Metric summary '{eval_method}' -> '{summarization_method}' not generated for model '{model_name}'. "
+                                f"Check warnings from from_benchmark_model_result. Set handle_empty_results='ignore'/'zero'."
                             )
                         elif handle_empty_results == 'ignore':
-                            # Do nothing, the model's entry for this metric/summary will be missing
                             pass
                         elif handle_empty_results == 'zero':
                             # Assign None as the summary statistic for cost when results are missing
-                            summarized_results[eval_method][summarization_method][
-                                model_name
-                            ] = None # Use None instead of 0.0 for cost
+                            summarized_results[eval_method][summarization_method][model_name] = None # Use None instead of 0.0 for cost
 
         return summarized_results

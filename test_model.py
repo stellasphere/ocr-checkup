@@ -29,7 +29,8 @@ COMPUTE_COST_PER_SEC = None # Example: 0.001
 # model_to_test = TrOCR()
 # model_to_test = EasyOCR()
 # model_to_test = Idefics2()
-model_to_test = Gemini_1_5_Pro()
+# model_to_test = Gemini_1_5_Pro()
+model_to_test = Claude_3_5_Haiku()
 
 # --- Initialization & Testing ---
 model_name = model_to_test.info().name if hasattr(model_to_test, 'info') else "Selected Model"

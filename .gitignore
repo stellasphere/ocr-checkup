@@ -3,12 +3,13 @@ venv
 __pycache__/
 **/.DS_Store
 datasets
-testing
+results
 
 testing_colab.py
 
 # Cursor
 .cursor
+
 
 # Distribution / packaging
 .Python

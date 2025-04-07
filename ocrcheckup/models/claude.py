@@ -1,3 +1,5 @@
+import abc
+import os
 from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
 
 import anthropic
@@ -6,38 +8,56 @@ from PIL import Image
 import base64
 from ..rate_limiter import RateLimiter
 
-class Claude_3_Opus(OCRBaseModel):
-    # Set specific RPM for Claude 3 Opus
-    RPM = 50
-
-    def info(self):
-        return OCRModelInfo(
-            name="Claude 3 Opus",
-            version="claude-3-opus-20240229",
-            tags=["cloud", "lmm"]
-        )
-
-    def __init__(self, api_key: str):
-        # Create RateLimiter instance
-        limiter = RateLimiter(self.RPM)
+# Abstract Base Class for Anthropic Claude models
+class _ClaudeBase(OCRBaseModel, abc.ABC):
+    """
+    Abstract base class for Anthropic Claude models.
+    Handles common initialization (API key, client, rate limiter) and evaluation logic.
+    """
+    def __init__(self, model_id: str, rpm: int, cost_per_second: float = None):
+        # Create RateLimiter instance using passed rpm
+        limiter = RateLimiter(rpm)
         # Pass limiter to superclass
-        super().__init__(rate_limiter=limiter)
-        # Store the API key and initialize the client
-        # It's generally recommended to initialize the client once in __init__
-        # rather than in every evaluate call.
-        self.api_key = api_key
-        self.client = anthropic.Anthropic(api_key=self.api_key)
-        self.model_version = self.info().version # Store model version for API call
+        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        self.model_id = model_id # Store model version for API call
+
+        # Configure Anthropic client with API Key from environment variable
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
+        try:
+            # Initialize the client
+            self.client = anthropic.Anthropic(api_key=api_key)
+        except Exception as e:
+            print(f"Anthropic Client initialization failed: {e}")
+            raise
+
+    @abc.abstractmethod
+    def info(self) -> OCRModelInfo:
+        """Return model information."""
+        pass
 
     def evaluate(self, image) -> OCRModelResponse:
+        """
+        Evaluates the model on a single image using the Anthropic API.
+        """
         # Convert numpy array image to base64 encoded JPEG
         buffered = BytesIO()
-        Image.fromarray(image).save(buffered, format="JPEG")
+        # Convert numpy array to PIL Image if needed
+        if not isinstance(image, Image.Image):
+             pil_image = Image.fromarray(image)
+        else:
+             pil_image = image
+        pil_image.save(buffered, format="JPEG") # Use JPEG as specified in original code
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        prediction = ""
+        cost = 0.0 # Cost ignored for now as requested
+        error_message = None
 
         try:
             message = self.client.messages.create(
-                model=self.model_version,
+                model=self.model_id,
                 max_tokens=1000, # Consider making max_tokens configurable if needed
                 temperature=0, # Using 0 temperature for deterministic output
                 messages=[
@@ -62,24 +82,112 @@ class Claude_3_Opus(OCRBaseModel):
             )
 
             # Extract text prediction
-            prediction = message.content[0].text
+            if message.content and isinstance(message.content, list) and len(message.content) > 0:
+                prediction = message.content[0].text.strip()
+            else:
+                print(f"Anthropic ({self.model_id}): Received no text content or unexpected response format.")
+                print(f"Response: {message}")
 
-            # Calculate cost based on usage (Opus pricing: $15/M input, $75/M output)
-            input_cost = (message.usage.input_tokens / 1_000_000) * 15
-            output_cost = (message.usage.output_tokens / 1_000_000) * 75
-            cost = input_cost + output_cost
-
-            return OCRModelResponse(
-                prediction=prediction,
-                cost=cost
-            )
+            # Cost calculation - Ignored for now
+            # If needed later, use message.usage tokens
+            # input_cost = (message.usage.input_tokens / 1_000_000) * INPUT_PRICE
+            # output_cost = (message.usage.output_tokens / 1_000_000) * OUTPUT_PRICE
+            # cost = input_cost + output_cost
+            cost = 0.0
 
         except Exception as e:
             # Handle potential API errors gracefully
-            print(f"Error during Claude API call: {e}")
-            # Return an empty response or re-raise, depending on desired behavior
-            return OCRModelResponse(
-                prediction="",
-                cost=0,
-                error=str(e) # Optionally include error information
-            ) 
+            print(f"Error during Anthropic API call ({self.model_id}): {e}")
+            error_message = str(e)
+            # prediction remains ""
+            # cost remains 0.0
+
+        return OCRModelResponse(
+            prediction=prediction,
+            cost=cost,
+            error_message=error_message
+        )
+
+# --- Specific Claude Model Implementations ---
+
+class Claude_3_Opus(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        # Specific model ID and RPM for Opus
+        super().__init__(model_id="claude-3-opus-20240229", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3 Opus",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_Sonnet(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        super().__init__(model_id="claude-3-sonnet-20240229", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3 Sonnet",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_Haiku(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        super().__init__(model_id="claude-3-haiku-20240307", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3 Haiku",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_5_Sonnet(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        # Refers to the original 3.5 Sonnet release
+        super().__init__(model_id="claude-3-5-sonnet-20240620", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3.5 Sonnet",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_5_Sonnet_V2(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        # This corresponds to claude-3-5-sonnet-20241022 (latest)
+        super().__init__(model_id="claude-3-5-sonnet-20241022", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3.5 Sonnet v2", # Distinguish name
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_5_Haiku(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        # This corresponds to claude-3-5-haiku-20241022 (latest)
+        super().__init__(model_id="claude-3-5-haiku-20241022", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3.5 Haiku",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        )
+
+class Claude_3_7_Sonnet(_ClaudeBase):
+    def __init__(self, cost_per_second: float = None):
+        # This corresponds to claude-3-7-sonnet-20250219 (latest)
+        super().__init__(model_id="claude-3-7-sonnet-20250219", rpm=50, cost_per_second=cost_per_second)
+
+    def info(self):
+        return OCRModelInfo(
+            name="Claude 3.7 Sonnet",
+            version=self.model_id,
+            tags=["cloud", "lmm"]
+        ) 
