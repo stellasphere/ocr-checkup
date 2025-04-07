@@ -43,18 +43,28 @@ class TestModel(OCRBaseModel):
 
         return OCRModelResponse(prediction="text", cost=0.00)
 
-from ocrcheckup.models import DocTR_RoboflowHosted, GPT_4o, Moondream2, TrOCR, Claude_3_Opus, EasyOCR
+from ocrcheckup.models import *
 
 models = [
     DocTR_RoboflowHosted(api_key=os.environ["ROBOFLOW_API_KEY"]),
-    GPT_4o(api_key=os.environ["OPENAI_API_KEY"]),
+    GPT_4o(),
+    O1(),
+    GPT_4_5_Preview(),
+    GPT_4o_Mini(),
     Moondream2(),
     TrOCR(),
     Claude_3_Opus(api_key=os.environ["ANTHROPIC_API_KEY"]),
     EasyOCR(),
+    Idefics2(),
+    Gemini_1_5_Pro(),
+    Gemini_1_5_Flash(),
+    Gemini_1_5_Flash_8B(),
+    Gemini_2_5_Pro_Preview(),
+    Gemini_2_0_Flash(),
+    Gemini_2_0_Flash_Lite(),
 ]
 
-models_to_overwrite = ["Test Model"]
+models_to_overwrite = ["GPT-4o"]
 
 benchmark_results = IndustrialSceneBenchmark.benchmark(
     models,

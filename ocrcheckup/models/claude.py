@@ -4,8 +4,12 @@ import anthropic
 from io import BytesIO
 from PIL import Image
 import base64
+from ..rate_limiter import RateLimiter
 
 class Claude_3_Opus(OCRBaseModel):
+    # Set specific RPM for Claude 3 Opus
+    RPM = 50
+
     def info(self):
         return OCRModelInfo(
             name="Claude 3 Opus",
@@ -14,7 +18,10 @@ class Claude_3_Opus(OCRBaseModel):
         )
 
     def __init__(self, api_key: str):
-        super().__init__()
+        # Create RateLimiter instance
+        limiter = RateLimiter(self.RPM)
+        # Pass limiter to superclass
+        super().__init__(rate_limiter=limiter)
         # Store the API key and initialize the client
         # It's generally recommended to initialize the client once in __init__
         # rather than in every evaluate call.

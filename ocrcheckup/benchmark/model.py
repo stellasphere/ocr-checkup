@@ -1,8 +1,10 @@
 import traceback
 import numpy as np
 import time
-import hashlib # Import hashlib for config identifier hashing if needed
-import json # Import json for config identifier serialization
+import hashlib
+import json
+from ..rate_limiter import RateLimiter
+import abc
 
 
 class OCRModelResponse:
@@ -39,7 +41,7 @@ class OCRModelInfo:
     # Added 'local' tag
     VALID_COST_TYPES = ["api", "compute", None] # Added cost types
 
-    def __init__(self, name: str, version: str, tags: list, cost_type: str = None, config_identifier: str = None) -> None: # Added config_identifier
+    def __init__(self, name: str, version: str, tags: list, cost_type: str = None, config_identifier: str = None) -> None:
         self.name = name
         self.version = version
         self.tags = tags
@@ -50,29 +52,16 @@ class OCRModelInfo:
         assert cost_type in self.VALID_COST_TYPES
 
 
-class OCRBaseModel:
-    def info(self) -> OCRModelInfo: # Changed to instance method
-        # Base info method now constructs the OCRModelInfo using get_config_identifier
-        # Subclasses MUST override _get_base_info to provide name, version, etc.
-        # This ensures config_identifier is consistently handled.
-        base_info = self._get_base_info()
-        return OCRModelInfo(
-            name=base_info['name'],
-            version=base_info['version'],
-            tags=base_info['tags'],
-            cost_type=base_info.get('cost_type'), # Use .get for optional cost_type
-            config_identifier=self.get_config_identifier()
-        )
+class OCRBaseModel(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def info(self) -> OCRModelInfo:
+        """Subclasses must implement this to return model information."""
+        raise NotImplementedError("info must be implemented by a subclass")
 
-    def _get_base_info(self) -> dict:
-        # Subclasses must implement this to return a dict with
-        # 'name', 'version', 'tags', and optionally 'cost_type'
-        raise NotImplementedError("_get_base_info must be implemented by a subclass")
-
-
-    def __init__(self, cost_per_second: float = None, **kwargs): # Added **kwargs
+    def __init__(self, cost_per_second: float = None, rate_limiter: RateLimiter | None = None, **kwargs):
         self.cost_per_second = cost_per_second # Store cost_per_second
         self.config_params = kwargs # Store arbitrary configuration parameters
+        self._rate_limiter = rate_limiter # Store passed rate limiter
         return None
 
     def get_config_identifier(self, max_len=50) -> str:
@@ -137,6 +126,12 @@ class OCRBaseModel:
         elapsed_time = None
         start_time = None
         try:
+            model_info = self.info()
+
+            # Use the rate limiter instance stored during __init__
+            if self._rate_limiter:
+                self._rate_limiter.wait_if_needed()
+
             start_time = time.perf_counter()
             result = self.evaluate(image)
             elapsed_time = time.perf_counter() - start_time
@@ -146,7 +141,6 @@ class OCRBaseModel:
 
             # Auto-calculate cost if it's a compute model and cost_per_second is set
             # and the evaluate method didn't already provide a cost.
-            model_info = self.info()
             if (
                 result.cost is None
                 and model_info.cost_type == "compute"
