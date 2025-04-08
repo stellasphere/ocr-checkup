@@ -1,13 +1,13 @@
 import abc
 import os
 from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
-
+from ocrcheckup.cost import ModelCost, CostType
 import anthropic
 from io import BytesIO
 from PIL import Image
 import base64
 from ..rate_limiter import RateLimiter
-
+from .consts import OCR_VLM_PROMPT
 # Abstract Base Class for Anthropic Claude models
 class _ClaudeBase(OCRBaseModel, abc.ABC):
     """
@@ -52,14 +52,13 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         prediction = ""
-        cost = 0.0 # Cost ignored for now as requested
+        cost_data = None
         error_message = None
 
         try:
             message = self.client.messages.create(
                 model=self.model_id,
-                max_tokens=1000, # Consider making max_tokens configurable if needed
-                temperature=0, # Using 0 temperature for deterministic output
+                max_tokens=1000,
                 messages=[
                     {
                         "role": "user",
@@ -74,7 +73,7 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
                             },
                             {
                                 "type": "text",
-                                "text": "Read the text in the image. Return only the text as it is visible in the image."
+                                "text": OCR_VLM_PROMPT
                             }
                         ]
                     }
@@ -88,13 +87,16 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
                 print(f"Anthropic ({self.model_id}): Received no text content or unexpected response format.")
                 print(f"Response: {message}")
 
-            # Cost calculation - Ignored for now
-            # If needed later, use message.usage tokens
-            # input_cost = (message.usage.input_tokens / 1_000_000) * INPUT_PRICE
-            # output_cost = (message.usage.output_tokens / 1_000_000) * OUTPUT_PRICE
-            # cost = input_cost + output_cost
-            cost = 0.0
-
+            # Cost calculation 
+            cost_data = ModelCost(
+                cost_type=CostType.EXTERNAL,
+                info={
+                    "model_id": self.model_id,
+                    "input_tokens": message.usage.input_tokens,
+                    "output_tokens": message.usage.output_tokens
+                }
+            )
+            
         except Exception as e:
             # Handle potential API errors gracefully
             print(f"Error during Anthropic API call ({self.model_id}): {e}")
@@ -104,7 +106,7 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
 
         return OCRModelResponse(
             prediction=prediction,
-            cost=cost,
+            cost_details=cost_data,
             error_message=error_message
         )
 

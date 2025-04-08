@@ -7,6 +7,7 @@ from io import BytesIO
 from PIL import Image
 import base64
 from ..rate_limiter import RateLimiter
+from ocrcheckup.cost import ModelCost, CostType
 
 # Abstract Base Class for OpenAI models
 class _OpenAIBase(OCRBaseModel, abc.ABC):
@@ -56,7 +57,7 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
         img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
 
         full_text = ""
-        cost = 0.0
+        cost_details = None
         prediction = ""
 
         try:
@@ -89,16 +90,14 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
                  print(f"OpenAI ({self.model_id}): Received no text content or unexpected response format.")
                  print(f"Response: {response}")
 
-
-            # Cost calculation - Using GPT-4o pricing as a default.
-            # TODO: Verify and potentially customize cost calculation per specific OpenAI model.
-            if response.usage:
-                input_price = (response.usage.prompt_tokens / 1000000) * 5  # $5 per million input tokens
-                output_price = (response.usage.completion_tokens / 1000000) * 15 # $15 per million output tokens
-                cost = input_price + output_price
-            else:
-                print(f"OpenAI ({self.model_id}): Usage information not found in response.")
-
+            cost_details = ModelCost(
+                cost_type=CostType.EXTERNAL,
+                info={
+                    "model_id": self.model_id,
+                    "input_token": response.usage.prompt_tokens,
+                    "output_token": response.usage.completion_tokens
+                }
+            )
 
             prediction = full_text.strip()
 
@@ -109,7 +108,7 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
 
         return OCRModelResponse(
             prediction=prediction,
-            cost=cost
+            cost_details=cost_details
         )
 
 

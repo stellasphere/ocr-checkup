@@ -5,13 +5,15 @@ import hashlib
 import json
 from ..rate_limiter import RateLimiter
 import abc
+from typing import Optional
+from ..cost import ModelCost, CostType
 
 
 class OCRModelResponse:
     def __init__(
         self,
         prediction: str = None,
-        cost: float = None,
+        cost_details: Optional[ModelCost] = None,
         success: bool = True,
         start_time: int = None,
         elapsed_time: int = None,
@@ -23,7 +25,7 @@ class OCRModelResponse:
             )
 
         self.prediction = prediction
-        self.cost = cost
+        self.cost_details = cost_details
         self.success = success
         self.error_message = error_message
 
@@ -106,7 +108,7 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
 
             # Use run_for_eval for consistency
             response = self.run_for_eval(img)
-            print(f"Test response: {response.prediction}, Cost: {response.cost}, Time: {response.elapsed_time}")
+            print(f"Test response: {response.prediction}, Cost Details: {response.cost_details}, Time: {response.elapsed_time}")
             assert response.success is True
 
         except:
@@ -139,15 +141,6 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
             result.elapsed_time = elapsed_time
             result.start_time = start_time
 
-            # Auto-calculate cost if it's a compute model and cost_per_second is set
-            # and the evaluate method didn't already provide a cost.
-            if (
-                result.cost is None
-                and model_info.cost_type == "compute"
-                and self.cost_per_second is not None
-            ):
-                result.cost = elapsed_time * self.cost_per_second
-
         except Exception as e:
             # Ensure elapsed time is recorded even on failure if possible
             if elapsed_time is None:
@@ -162,7 +155,7 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
             result = OCRModelResponse(
                  success=False,
                  error_message=str(e), # Use str(e)
-                 cost = getattr(result, 'cost', None), # Preserve cost if evaluate partially ran
+                 cost_details = getattr(result, 'cost_details', None), # Preserve cost_details if evaluate partially ran
                  elapsed_time = elapsed_time,
                  start_time = start_time
             )

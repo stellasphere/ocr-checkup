@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 # Import all models from the models module
 from ocrcheckup.models import *
 from ocrcheckup import utils
+from ocrcheckup.cost import ModelCostCalculator
 
 # Load environment variables (e.g., for API keys)
 load_dotenv()
@@ -30,7 +31,9 @@ COMPUTE_COST_PER_SEC = None # Example: 0.001
 # model_to_test = EasyOCR()
 # model_to_test = Idefics2()
 # model_to_test = Gemini_1_5_Pro()
-model_to_test = Claude_3_5_Haiku()
+model_to_test = Florence2Large()
+# model_to_test = Claude_3_5_Haiku()
+# model_to_test = MistralOCR()
 
 # --- Initialization & Testing ---
 model_name = model_to_test.info().name if hasattr(model_to_test, 'info') else "Selected Model"
@@ -64,18 +67,29 @@ print(f"\nRunning evaluation with {model_name} on image: {TEST_IMAGE_PATH}")
 # Use the run_for_eval method which handles timing and potential errors
 response = model_to_test.run_for_eval(image_rgb)
 
+# -- Cost Calculation --
+print(f"\n--- Cost Calculation ---")
+if response.cost_details is not None:
+    print(f"Cost Details: {response.cost_details}")
+else:
+    print("Cost: Not calculated (cost_per_second not provided or model doesn't report cost)")
+cost_calculator = ModelCostCalculator.default()
+cost = cost_calculator.calculate_single_cost(response.cost_details)
+
 # --- Results ---
 print(f"\n--- {model_name} Evaluation Results ---")
 if response.success:
     print(f"Prediction:\n{response.prediction}")
     print(f"\nElapsed Time: {response.elapsed_time:.4f} seconds")
-    if response.cost is not None:
-        print(f"Estimated Cost: ${response.cost:.6f}")
+    if cost is not None:
+        print(f"Estimated Cost: ${cost:.6f}")
     else:
         print("Cost: Not calculated (cost_per_second not provided or model doesn't report cost)")
 else:
     print(f"Evaluation Failed!")
     print(f"Error Message: {response.error_message}")
     print(f"Elapsed Time: {response.elapsed_time:.4f} seconds (until failure)")
+
+
 
 print("\nScript finished.") 

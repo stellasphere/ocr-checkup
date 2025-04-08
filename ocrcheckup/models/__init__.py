@@ -3,7 +3,6 @@ import numpy as np
 
 from .tesseract import Tesseract
 from .doctr import DocTR_RoboflowHosted
-from .test import TestModel
 from .moondream import Moondream2
 from .trocr import TrOCR
 from .easyocr import EasyOCR
@@ -31,6 +30,11 @@ from .claude import (
     Claude_3_5_Haiku,
     Claude_3_7_Sonnet,
 )
+from .roboflow import (
+    Florence2Large,
+    Florence2Base,
+)
+from .mistral import MistralOCR
 __all__ = [
     "DocTR_RoboflowHosted",
     "EasyOCR",
@@ -53,4 +57,8 @@ __all__ = [
     "Claude_3_5_Sonnet",
     "Claude_3_5_Sonnet_V2",
     "Claude_3_5_Haiku",
+    "Claude_3_7_Sonnet",
+    "MistralOCR",
+    "Florence2Large",
+    "Florence2Base",
 ]

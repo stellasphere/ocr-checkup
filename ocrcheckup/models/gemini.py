@@ -12,6 +12,8 @@ import os
 import abc # Import abc for abstract base class
 # Import RateLimiter
 from ..rate_limiter import RateLimiter
+from .consts import OCR_VLM_PROMPT
+from ..cost import ModelCost, CostType
 
 # Base class for Gemini models
 class _GeminiBase(OCRBaseModel, abc.ABC):
@@ -43,7 +45,7 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
         # self.model = genai.GenerativeModel(self.model_id) # Now using client
 
         # Common configurations (can be overridden by subclasses if needed)
-        self.prompt = "Read the text in the image. Return only the text as it is visible in the image."
+        self.prompt = OCR_VLM_PROMPT
         # Adapt generation_config to types.GenerateContentConfig format
         self.generation_config = types.GenerateContentConfig(
             max_output_tokens=2048,
@@ -104,8 +106,16 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
             output_cost = (len(full_text) / 1000) * 0.000375
             cost = input_cost + output_cost
 
-            prediction = full_text.strip()
+            cost_details = ModelCost(
+                cost_type=CostType.EXTERNAL,
+                info={
+                    "model_id": f"gemini/${self.model_id}",
+                    "input_tokens": input_cost,
+                    "output_tokens": output_cost
+                }
+            )
 
+            prediction = full_text.strip()
         except Exception as e:
             print(f"Gemini ({self.model_id}): Error during API call: {e}")
             prediction = ""
@@ -113,7 +123,7 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
 
         return OCRModelResponse(
             prediction=prediction,
-            cost=cost
+            cost_details=cost_details
         )
 
 # --- Specific Gemini Model Implementations ---
@@ -122,7 +132,7 @@ class Gemini_1_5_Pro(_GeminiBase):
     def __init__(self, cost_per_second: float = None):
         super().__init__(model_id="gemini-1.5-pro", rpm=1000, cost_per_second=cost_per_second)
 
-    # Restore original info method
+
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 1.5 Pro",
@@ -135,7 +145,6 @@ class Gemini_1_5_Flash(_GeminiBase):
         # Pass specific RPM (2000) to base
         super().__init__(model_id="gemini-1.5-flash", rpm=2000, cost_per_second=cost_per_second)
 
-    # Restore original info method
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 1.5 Flash",
@@ -148,7 +157,6 @@ class Gemini_1_5_Flash_8B(_GeminiBase):
         # Pass specific RPM (4000) to base
         super().__init__(model_id="gemini-1.5-flash-8b", rpm=4000, cost_per_second=cost_per_second)
 
-    # Restore original info method
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 1.5 Flash-8B",
@@ -156,12 +164,12 @@ class Gemini_1_5_Flash_8B(_GeminiBase):
             tags=["cloud", "lmm"],
         )
 
-class Gemini_2_5_Pro_Preview(_GeminiBase): # Renamed based on user list
+class Gemini_2_5_Pro_Preview(_GeminiBase):
     def __init__(self, cost_per_second: float = None):
         # Pass specific RPM (150) to base
         super().__init__(model_id="gemini-2.5-pro-preview-03-25", rpm=150, cost_per_second=cost_per_second)
 
-    # Restore original info method
+
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 2.5 Pro Preview",
@@ -169,12 +177,10 @@ class Gemini_2_5_Pro_Preview(_GeminiBase): # Renamed based on user list
             tags=["cloud", "lmm"],
         )
 
-class Gemini_2_0_Flash(_GeminiBase): # Renamed based on user list
+class Gemini_2_0_Flash(_GeminiBase):
     def __init__(self, cost_per_second: float = None):
-        # Pass specific RPM (2000) to base
         super().__init__(model_id="gemini-2.0-flash", rpm=2000, cost_per_second=cost_per_second)
 
-    # Restore original info method
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 2.0 Flash",
@@ -182,12 +188,10 @@ class Gemini_2_0_Flash(_GeminiBase): # Renamed based on user list
             tags=["cloud", "lmm"],
         )
 
-class Gemini_2_0_Flash_Lite(_GeminiBase): # Renamed based on user list
+class Gemini_2_0_Flash_Lite(_GeminiBase):
     def __init__(self, cost_per_second: float = None):
-        # Pass specific RPM (4000) to base
         super().__init__(model_id="gemini-2.0-flash-lite", rpm=4000, cost_per_second=cost_per_second)
 
-    # Restore original info method
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 2.0 Flash-Lite",

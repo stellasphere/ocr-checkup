@@ -30,23 +30,32 @@ from ocrcheckup.models import *
 models = [
     DocTR_RoboflowHosted(api_key=os.environ["ROBOFLOW_API_KEY"]),
     Moondream2(),
+    Claude_3_Opus(),
+    Claude_3_Sonnet(),
+    Claude_3_Haiku(),
+    Claude_3_5_Sonnet(),
+    Claude_3_5_Sonnet_V2(),
+    Claude_3_5_Haiku(),
+    Claude_3_7_Sonnet(),
     TrOCR(),
-    EasyOCR(),
-    Idefics2(),
-    Claude_3_Opus(api_key=os.environ["ANTHROPIC_API_KEY"]),
     Gemini_1_5_Pro(),
     Gemini_1_5_Flash(),
     Gemini_1_5_Flash_8B(),
     Gemini_2_5_Pro_Preview(),
     Gemini_2_0_Flash(),
     Gemini_2_0_Flash_Lite(),
+    EasyOCR(),
     GPT_4o(),
     O1(),
     GPT_4_5_Preview(),
     GPT_4o_Mini(),
+    Idefics2(),
+    MistralOCR(),
+    Florence2Large(),
+    Florence2Base(),
 ]
 
-models_to_overwrite = ["GPT-4o"]
+models_to_overwrite = []
 
 benchmark_results = FocusedSceneBenchmark.benchmark(
     models,

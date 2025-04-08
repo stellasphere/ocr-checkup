@@ -32,3 +32,5 @@ seaborn
 transformers
 timm
 einops
+termcolor
+markdown-it-py

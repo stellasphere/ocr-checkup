@@ -3,7 +3,7 @@ from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from PIL import Image
 import torch
-
+from .consts import OCR_VLM_PROMPT
 class Moondream2(OCRBaseModel):
   def info(self=None):
     return OCRModelInfo(
@@ -46,7 +46,7 @@ class Moondream2(OCRBaseModel):
     enc_image = self.model.encode_image(image_pil)
     prediction = self.model.answer_question(
         enc_image,
-        "Identify and transcribe the text into a machine-readable format",
+        OCR_VLM_PROMPT,
         self.tokenizer
     )
 

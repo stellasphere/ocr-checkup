@@ -28,6 +28,7 @@ class Benchmark:
         models: List[OCRBaseModel],
         autosave_dir: str = None,
         create_autosave: bool = True,
+        create_autosave_with_fails: bool = False,
         use_autosave: bool = True,
         overwrite: Union[bool, List[str]] = False,
         run_models: bool = True,
@@ -37,8 +38,9 @@ class Benchmark:
         
         Args:
             models (List[OCRBaseModel]): List of OCR models to benchmark.
-            create_autosave (bool, optional): Whether to save benchmark results. Defaults to True.
             autosave_dir (str, optional): Directory to save benchmark results. Defaults to "{benchmark_name}_Autosaves".
+            create_autosave (bool, optional): Whether to save benchmark results. Defaults to True.
+            create_autosave_with_fails (bool, optional): If False (default), autosave is only created if all runs for a model succeed (100% success rate). If True, autosave is attempted regardless of success rate.
             use_autosave (bool, optional): Whether to load previously saved results. Defaults to True.
             run_models (bool, optional): Whether to run the models or just load saved results. Defaults to True.
             overwrite (Union[bool, List[str]], optional): Whether to overwrite existing results.
@@ -98,7 +100,14 @@ class Benchmark:
                                     print(f"    Using valid autosaved result for {model_info.name} v{model_info.version}.")
                                     loaded_results_map[model_idx] = autosaved_model_result
                                 else:
-                                    print(f"    Autosaved result for {model_info.name} is not valid. Will re-run.")
+                                    # Prompt user to delete?
+                                    user_input = input(f"    Autosaved result for {model_info.name} is not valid. Will re-run. Delete? (y/n): ")
+                                    if user_input.lower() == 'y':
+                                        os.remove(autosaved_model_results_path)
+                                        print(f"    Deleted autosaved result for {model_info.name}.")
+                                        print(f"    Will re-run.")
+                                    else:
+                                        print(f"    Autosaved result for {model_info.name} is not valid. Will re-run.")
                             # --- End Validation ---
                         except Exception as e:
                             print(f"  Error loading autosaved result for {model_info.name} at {autosaved_model_results_path}: {e}")
@@ -136,26 +145,32 @@ class Benchmark:
                 print(f"  Model {model_info.name} finished testing.")
                 total_processed = sum(1 for res in model_result.indexed_results if res is not None)
                 total_successful = sum(1 for res in model_result.indexed_results if res is not None and res.success)
-                success_percentage = (total_successful / total_processed * 100) if total_processed > 0 else 0
+                success_percentage = (float(total_successful) / total_processed * 100.0) if total_processed > 0 else 0.0
                 print(f"  Successfully Processed: {success_percentage:.2f}% ({total_successful}/{total_processed})")
 
                 if create_autosave:
-                    should_overwrite_save = False
-                    if isinstance(overwrite, bool):
-                        should_overwrite_save = overwrite
-                    elif isinstance(overwrite, list) and model_info.name in overwrite:
-                         should_overwrite_save = True
+                    can_autosave = True
+                    if not create_autosave_with_fails and success_percentage < 100.0:
+                        print(f"  Skipping autosave for {model_info.name}: Success rate ({success_percentage:.2f}%) is less than 100% and create_autosave_with_fails is False.")
+                        can_autosave = False
 
-                    print(f"  Attempting to save result for {model_info.name} (overwrite={should_overwrite_save})...")
-                    saved_path = model_result.save(
-                        autosave_dir,
-                        path=None,
-                        overwrite=should_overwrite_save,
-                    )
-                    if saved_path:
-                         print(f"  Result saved to: {saved_path}")
-                    else:
-                         print(f"  Failed to save result for {model_info.name} (maybe file existed and overwrite was False).")
+                    if can_autosave:
+                        should_overwrite_save = False
+                        if isinstance(overwrite, bool):
+                            should_overwrite_save = overwrite
+                        elif isinstance(overwrite, list) and model_info.name in overwrite:
+                            should_overwrite_save = True
+
+                        print(f"  Attempting to save result for {model_info.name} (overwrite={should_overwrite_save})...")
+                        saved_path = model_result.save(
+                            autosave_dir,
+                            path=None,
+                            overwrite=should_overwrite_save,
+                        )
+                        if saved_path:
+                            print(f"  Result saved to: {saved_path}")
+                        else:
+                            print(f"  Failed to save result for {model_info.name} (maybe file existed and overwrite was False).")
             else:
                  if create_autosave and model_idx in loaded_results_map:
                      should_force_save = False
@@ -324,7 +339,7 @@ class BenchmarkModelResult:
 
     def save(self, dir="", path=None, overwrite=False, create_dir=True):
         if path is None:
-            path = f"{self.model.name}_{self.model.version}"
+            path = f"{self.model.name}-{self.model.version}"
 
         file_path = os.path.join(dir, path)
 
