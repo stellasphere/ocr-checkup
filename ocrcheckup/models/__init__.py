@@ -35,6 +35,7 @@ from .roboflow import (
     Florence2Base,
 )
 from .mistral import MistralOCR
+from .qwen import Qwen_2_5_VL_7B
 __all__ = [
     "DocTR_RoboflowHosted",
     "EasyOCR",
@@ -61,4 +62,5 @@ __all__ = [
     "MistralOCR",
     "Florence2Large",
     "Florence2Base",
+    "Qwen_2_5_VL_7B",
 ]

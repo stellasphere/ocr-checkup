@@ -5,7 +5,7 @@ from PIL import Image
 import torch
 from .consts import OCR_VLM_PROMPT
 class Moondream2(OCRBaseModel):
-  def info(self=None):
+  def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "Moondream2",
       version = "2025-03-27",
@@ -13,8 +13,8 @@ class Moondream2(OCRBaseModel):
       cost_type="compute"
     )
 
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__()
 
     # Let PyTorch decide the device (CPU, CUDA, or MPS)
     if torch.cuda.is_available():
@@ -50,7 +50,6 @@ class Moondream2(OCRBaseModel):
         self.tokenizer
     )
 
-    # Cost is calculated automatically by run_for_eval if cost_per_second is provided
     return OCRModelResponse(
       prediction=prediction
     ) 

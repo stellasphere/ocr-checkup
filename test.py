@@ -3,6 +3,8 @@ import ocrcheckup
 
 import supervision as sv
 import os
+import csv
+from pathlib import Path
 
 from roboflow import Roboflow
 
@@ -10,8 +12,11 @@ import ocrcheckup.evaluation
 import ocrcheckup.models
 import ocrcheckup.utils
 from ocrcheckup.evaluation import StringMetrics
+import ocrcheckup.evaluation as eval_utils
 import numpy as np
+import Levenshtein
 
+from ocrcheckup.cost import ModelCostCalculator, ModelCost, CostType
 
 DATASET_ID = "focused-scene-ocr"
 
@@ -22,6 +27,8 @@ FocusedSceneBenchmark = Benchmark.from_roboflow_dataset(
     project=DATASET_ID,
     version=1,
 )
+
+FocusedSceneBenchmark.showcase()
 
 from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
 
@@ -53,6 +60,7 @@ models = [
     MistralOCR(),
     Florence2Large(),
     Florence2Base(),
+    Qwen_2_5_VL_7B(),
 ]
 
 models_to_overwrite = []
@@ -61,11 +69,140 @@ benchmark_results = FocusedSceneBenchmark.benchmark(
     models,
     autosave_dir=f"results/{DATASET_ID}",
     create_autosave=True,
+    create_autosave_with_fails=True,
+    autosave_fail_threshold=0.5,
     use_autosave=True, # Make sure this is True to test loading/overwriting
     run_models=True,
     overwrite=models_to_overwrite, # Pass the list or boolean here
+    time_between_runs=1
 )
 print("Benchmark Results:", type(benchmark_results))
+
+# --- Prepare for CSV Export ---
+csv_output_dir = Path(f"results/{DATASET_ID}_inference_details")
+csv_output_dir.mkdir(parents=True, exist_ok=True)
+csv_file_path = csv_output_dir / "detailed_results.csv"
+
+# --- Initialize Cost Calculator (reuse from later in the script) ---
+runtime_cost_per_second_placeholder = 0.001506661
+try:
+    cost_calculator_for_csv = ModelCostCalculator.default(runtime_cost_per_second=runtime_cost_per_second_placeholder)
+except (ImportError, ValueError) as e:
+    print(f"Failed to initialize ModelCostCalculator for CSV: {e}. Individual costs might be missing.")
+    cost_calculator_for_csv = None
+
+# --- Write Detailed CSV ---
+print(f"\nWriting detailed inference results to {csv_file_path}...")
+try:
+    # Access ground truths (annotations) and metadata for image IDs
+    ground_truths = FocusedSceneBenchmark.annotations # Use .annotations
+    metadata_list = FocusedSceneBenchmark.metadata    # Use .metadata
+
+    # Extract image filenames from metadata, providing a fallback
+    if metadata_list and all('image_filename' in item for item in metadata_list):
+        image_ids = [item['image_filename'] for item in metadata_list]
+    else:
+        print("Warning: Could not extract 'image_filename' from all metadata items. Falling back to index-based IDs.")
+        # Generate index IDs if metadata is missing or incomplete
+        image_ids = [f"index_{i}" for i in range(len(ground_truths))]
+
+    if len(image_ids) != len(ground_truths):
+        print(f"Warning: Mismatch between number of extracted image IDs ({len(image_ids)}) and annotations ({len(ground_truths)}). CSV data might be misaligned.")
+        # Adjust image_ids length to match ground_truths to prevent IndexError, though data might be wrong
+        image_ids = [image_ids[i] if i < len(image_ids) else f"missing_id_{i}" for i in range(len(ground_truths))]
+
+
+    with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = [
+            'model_name', 'model_version', 'image_id', 'ground_truth',
+            'prediction', 'success', 'error_message', 'start_time',
+            'elapsed_time', 'cost_usd', 'cost_details_repr',
+            'levenshtein_distance', 'levenshtein_ratio', 'is_correct'
+        ]
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # Iterate through results for each model
+        for model_result in benchmark_results:
+            model_info = model_result.model
+            model_name = model_info.name
+            model_version = model_info.version
+
+            # Iterate through individual responses for the model
+            for i, response in enumerate(model_result.indexed_results):
+                # Handle potential None responses if benchmark allows it
+                if response is None:
+                    print(f"Warning: Skipping None response for model {model_name}, image index {i}")
+                    # Optionally write a row indicating failure if needed
+                    # writer.writerow({'model_name': model_name, 'model_version': model_version, 'image_id': image_ids[i] if i < len(image_ids) else f"index_{i}", 'success': False, 'error_message': 'Benchmark returned None response'})
+                    continue
+
+                # Defensive checks for index boundaries
+                if i >= len(image_ids) or i >= len(ground_truths):
+                     print(f"Warning: Skipping response index {i} for model {model_name} due to index out of bounds for image_ids/ground_truths.")
+                     continue
+
+                image_id = image_ids[i]
+                gt = ground_truths[i]
+
+                # Ensure prediction is a string for calculations, default to empty if None
+                prediction_text = response.prediction if response.prediction is not None else ""
+
+                # Calculate string metrics using the Levenshtein library
+                distance = Levenshtein.distance(gt, prediction_text)
+                ratio = Levenshtein.ratio(gt, prediction_text)
+                # Correctness check: prediction must match GT *and* the operation must have succeeded
+                is_correct = 1 if gt == response.prediction and response.success else 0
+
+                # Calculate individual cost
+                individual_cost_usd = None
+                cost_details_repr = repr(response.cost_details) # Store representation of cost details
+                if cost_calculator_for_csv and response.cost_details:
+                    try:
+                        # Ensure cost calculation handles different CostTypes appropriately
+                        individual_cost_usd = cost_calculator_for_csv.calculate_single_cost(response.cost_details)
+                    except Exception as cost_calc_e:
+                        # Log specific error during cost calculation for this row
+                        print(f"Warning: Failed to calculate cost for {model_name} on {image_id} (Index {i}): {cost_calc_e}")
+                        individual_cost_usd = None # Ensure cost is None if calculation fails
+
+                # Prepare row data
+                row = {
+                    'model_name': model_name,
+                    'model_version': model_version,
+                    'image_id': image_id,
+                    'ground_truth': gt,
+                    'prediction': response.prediction, # Store the original prediction (might be None)
+                    'success': response.success,
+                    'error_message': response.error_message,
+                    'start_time': response.start_time,
+                    'elapsed_time': f"{response.elapsed_time:.4f}" if response.elapsed_time is not None else "", # Format time
+                    'cost_usd': f"{individual_cost_usd:.8f}" if individual_cost_usd is not None else "", # Format cost
+                    'cost_details_repr': cost_details_repr, # Include the repr
+                    'levenshtein_distance': distance,
+                    'levenshtein_ratio': f"{ratio:.4f}", # Format ratio
+                    'is_correct': is_correct
+                }
+                writer.writerow(row)
+
+    print("Finished writing detailed results.")
+
+# Catch specific expected errors and general errors during CSV writing
+except AttributeError as e:
+     print(f"\nError accessing benchmark data for CSV export: {e}")
+     print("Ensure the Benchmark object has 'annotations' and 'metadata' (with 'image_filename' keys) attributes.") # Updated error message
+     print("Skipping detailed CSV export.")
+except ImportError as e:
+     # Catch potential import error for string_eval if structure changes
+     print(f"\nError importing required module for CSV export: {e}")
+     print("Skipping detailed CSV export.")
+except Exception as e:
+    # Catch any other unexpected error during the process
+    print(f"\nAn unexpected error occurred during CSV export: {e}")
+    import traceback
+    traceback.print_exc()
+    print("Skipping detailed CSV export.")
+# --- End CSV Export ---
 
 string_metrics = ocrcheckup.evaluation.StringMetrics.from_benchmark_model_results(
     benchmark_results,
@@ -81,177 +218,61 @@ speed_metrics = ocrcheckup.evaluation.SpeedMetrics.from_benchmark_model_results(
 print("Speed Metrics:")
 print(ocrcheckup.utils.pretty_json(speed_metrics))
 
-# --- New Analysis using indexed_results from loaded data AND current benchmark metadata --- #
-print("\n--- Analyzing Poorly Performing Images (using loaded results + current benchmark metadata) ---")
+# --- Calculate and Print Costs ---
+print("\nCalculating Costs...")
 
-# Check if benchmark_results exists and is not empty
-if not benchmark_results or not isinstance(benchmark_results, list):
-    print("Benchmark results are missing or invalid.")
-# Check if the current FocusedSceneBenchmark object has the required data
-elif not hasattr(FocusedSceneBenchmark, 'images') or not hasattr(FocusedSceneBenchmark, 'annotations') or not hasattr(FocusedSceneBenchmark, 'metadata'):
-    print("Current FocusedSceneBenchmark object is missing images, annotations, or metadata.")
-else:
-    try:
-        # --- Use CURRENT benchmark object for ground truth and metadata --- #
-        num_images = len(FocusedSceneBenchmark.images)
-        current_annotations = FocusedSceneBenchmark.annotations
-        current_metadata = FocusedSceneBenchmark.metadata
-        # --- End Use CURRENT --- #
+# Placeholder for runtime cost per second (e.g., in USD)
+runtime_cost_per_second_placeholder = 0.0001 # Example: $0.0001 per second
 
-        if num_images != len(current_annotations) or num_images != len(current_metadata):
-             # This check uses the current benchmark's counts
-             raise ValueError("Current benchmark image, annotation, or metadata count mismatch.")
+# Initialize the calculator - stop if this fails
+try:
+    cost_calculator = ModelCostCalculator.default(runtime_cost_per_second=runtime_cost_per_second_placeholder)
+except (ImportError, ValueError) as e:
+    print(f"Failed to initialize ModelCostCalculator: {e}. Skipping cost calculations.")
+    cost_calculator = None # Set to None so the final print block knows to skip
 
-        # Also check if the loaded results seem to match the expected number of images
-        # (This is a sanity check, the primary source is the current benchmark)
-        if hasattr(benchmark_results[0], 'indexed_results') and len(benchmark_results[0].indexed_results) != num_images:
-             print(f"Warning: Loaded results count ({len(benchmark_results[0].indexed_results)}) doesn't match current benchmark image count ({num_images}). Analysis might be incorrect.")
+if cost_calculator: # Only proceed if calculator initialized
+    total_benchmark_cost = 0.0
+    model_costs_summary = {}
 
-    except (AttributeError, IndexError, ValueError, TypeError) as e:
-        print(f"Could not get data from current FocusedSceneBenchmark object: {e}")
-        num_images = 0
-        current_annotations = []
-        current_metadata = []
+    # Iterate through results for each model
+    for model_result in benchmark_results:
+        model_info = model_result.model
+        model_id_str = f"{model_info.name} ({model_info.version})"
+        print(f"  Processing costs for: {model_id_str}")
 
-    num_models = len(benchmark_results)
-    image_analysis = {} # Store dict {index: {'score': float, 'filename': str}}
+        # Directly extract cost_details, assuming structure exists
+        # This will fail if response is None or lacks cost_details - as requested
+        model_costs_list = [
+            response.cost_details
+            for response in model_result.indexed_results
+            if response and isinstance(response.cost_details, ModelCost) # Keep basic check for existence
+        ]
 
-    if num_images == 0 or num_models == 0:
-        print("No images or models to analyze.")
+        if not model_costs_list:
+            print(f"    No cost details found for {model_id_str}.")
+            model_costs_summary[model_id_str] = 0.0
+            continue
+
+        # Calculate costs - let it fail if calculator encounters issues (e.g., missing pricing)
+        individual_costs = cost_calculator.calculate_batch_cost(model_costs_list)
+
+        # Sum costs, filtering out None results from calculator (e.g., for UNKNOWN type)
+        total_model_cost = sum(cost for cost in individual_costs if cost is not None)
+
+        model_costs_summary[model_id_str] = total_model_cost
+        total_benchmark_cost += total_model_cost
+        print(f"    Total estimated cost for {model_id_str}: ${total_model_cost:.6f}")
+
+    # --- Simple Summary ---
+    print("\n--- Benchmark Cost Summary ---")
+    if model_costs_summary:
+        for model_name, cost in model_costs_summary.items():
+             # Assume cost is always a float here after the sum()
+            print(f"- {model_name}: ${cost:.6f}")
+        print(f"\nTotal Estimated Benchmark Cost: ${total_benchmark_cost:.6f}")
+        print(f"(Using placeholder runtime cost/sec: ${runtime_cost_per_second_placeholder:.6f})")
     else:
-        print(f"Analyzing {num_models} models across {num_images} images (using loaded results + current metadata)...")
+        print("No models had cost details to calculate.")
+# --- End Cost Calculation ---
 
-        for i in range(num_images):
-            image_levenshtein_ratios = []
-            try:
-                # --- Get ground truth and filename from CURRENT benchmark --- #
-                ground_truth = current_annotations[i]
-                image_filename = current_metadata[i].get('image_filename', f'index_{i}_missing_filename')
-                # --- End Get from CURRENT --- #
-            except IndexError:
-                 print(f"Warning: Index {i} out of bounds for current annotations/metadata. Skipping analysis for this image.")
-                 image_analysis[i] = {'score': 0.0, 'filename': f'index_{i}_missing_metadata'}
-                 continue
-
-            # --- Iterate through LOADED model results --- #
-            for model_result in benchmark_results:
-                try:
-                    # --- Access performance from LOADED result --- #
-                    response = model_result.indexed_results[i]
-                    # --- End Access performance --- #
-
-                    # --- Process the response (same logic as before) --- #
-                    if response is None:
-                         print(f"Warning: Missing result for image index {i} ({image_filename}) in loaded model {model_result.model.name}. Treating as failure.")
-                         image_levenshtein_ratios.append(0.0)
-                    elif isinstance(response, OCRModelResponse):
-                        if response.success and response.prediction is not None:
-                            # --- Calculate ratio using CURRENT ground truth --- #
-                            ratio = StringMetrics(response.prediction, ground_truth).levenshtein_ratio()
-                            # --- End Calculate ratio --- #
-                            image_levenshtein_ratios.append(ratio)
-                        else:
-                            image_levenshtein_ratios.append(0.0)
-                    else:
-                         print(f"Warning: Invalid data type found at index {i} ({image_filename}) for loaded model {model_result.model.name}. Type: {type(response)}. Treating as failure.")
-                         image_levenshtein_ratios.append(0.0)
-                    # --- End Process response --- #
-
-                except IndexError:
-                    print(f"Warning: Index {i} out of bounds for loaded indexed_results in model {model_result.model.name} (Size: {len(model_result.indexed_results)}) for image {image_filename}. Treating as failure.")
-                    image_levenshtein_ratios.append(0.0)
-                except AttributeError:
-                     print(f"Warning: Loaded result for model {model_result.model.name} seems malformed (missing indexed_results?) for image {i} ({image_filename}). Treating as failure.")
-                     image_levenshtein_ratios.append(0.0)
-                except Exception as e:
-                     print(f"Error accessing loaded result for image {i} ({image_filename}), model {model_result.model.name}: {e}")
-                     image_levenshtein_ratios.append(0.0)
-            # --- End Iterate through LOADED model results --- #
-
-            # Calculate the average score for the image
-            if image_levenshtein_ratios:
-                average_score = sum(image_levenshtein_ratios) / len(image_levenshtein_ratios)
-            else:
-                average_score = 0.0
-
-            # Store score and filename (from CURRENT benchmark)
-            image_analysis[i] = {'score': average_score, 'filename': image_filename}
-
-
-        # Sort based on score
-        sorted_analysis = sorted(image_analysis.items(), key=lambda item: item[1]['score'])
-
-        # Get the top 5 worst performing filenames
-        top_5_worst_files = [item[1]['filename'] for item in sorted_analysis[:5]]
-
-        print("\nTop 5 Image Filenames with Poorest Average Performance (Lowest Levenshtein Ratio):")
-        if not top_5_worst_files:
-             print("Could not determine worst performing images (check analysis details).")
-        else:
-            for filename in top_5_worst_files:
-                 print(f"- {filename}")
-
-            # Optional: Print scores and filenames
-            print("\nImage Filename                 | Average Levenshtein Ratio")
-            print("-----------------------------|---------------------------")
-            for index, data in sorted_analysis[:5]:
-                print(f"{data['filename']:<28} | {data['score']:.4f}")
-
-            # --- Show Predictions for Top 5 Worst Images --- #
-            print("\n--- Predictions for Top 5 Worst Performing Images --- ")
-            # Use top_5_worst_items which contains (index, data) tuples
-            top_5_worst_items = sorted_analysis[:5]
-            for index, data in top_5_worst_items:
-                filename = data['filename']
-                score = data['score']
-                print(f"\n--------------------------------------------------")
-                print(f"Image: {filename} (Average Score: {score:.4f})")
-                try:
-                     # Use current_annotations from the outer scope
-                     ground_truth = current_annotations[index]
-                     print(f"Ground Truth: {ground_truth}")
-                except IndexError:
-                     print("Ground Truth: Error retrieving!")
-                except NameError:
-                     print("Ground Truth: Error retrieving (current_annotations not defined)!")
-
-
-                print("Model Predictions:")
-                # Loop through the loaded benchmark_results
-                for model_result in benchmark_results:
-                     try:
-                         model_name = model_result.model.name
-                     except AttributeError:
-                         model_name = "[Unknown Model Name]"
-
-                     try:
-                         # Access the specific result for this image index
-                         response = model_result.indexed_results[index]
-
-                         # Determine what to print based on the response
-                         if response is None:
-                              prediction_text = "[Result Missing]"
-                         elif not isinstance(response, OCRModelResponse):
-                              prediction_text = f"[Invalid Result Type: {type(response)}]"
-                         elif response.success:
-                              # Handle potential None prediction even on success
-                              prediction_text = response.prediction if response.prediction is not None else "[Prediction is None]"
-                         else:
-                              # Include error message for failed predictions
-                              error_msg = response.error_message if response.error_message else "No error message"
-                              prediction_text = f"[FAILED: {error_msg}]"
-
-                     except IndexError:
-                         prediction_text = "[Index Error accessing result]"
-                     except AttributeError:
-                         prediction_text = "[Attribute Error accessing result (maybe missing indexed_results)]"
-                     except Exception as e:
-                          prediction_text = f"[Unexpected error retrieving prediction: {e}]"
-
-                     # Print model name and its prediction/status
-                     print(f"  - {model_name}:")
-                     # Indent prediction text for readability
-                     print(f"    {prediction_text}") # Simple string representation
-
-            print(f"--------------------------------------------------")
-            # --- End Show Predictions --- #

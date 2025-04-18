@@ -22,11 +22,11 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
     Handles common initialization and evaluation logic.
     """
     # Accept rpm as argument
-    def __init__(self, model_id: str, rpm: int, cost_per_second: float = None):
+    def __init__(self, model_id: str, rpm: int):
         # Create RateLimiter instance using passed rpm
         limiter = RateLimiter(rpm)
         # Pass limiter to superclass
-        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        super().__init__(rate_limiter=limiter)
         self.model_id = model_id
 
         # Configure genai client with API Key from environment variable
@@ -109,17 +109,16 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
             cost_details = ModelCost(
                 cost_type=CostType.EXTERNAL,
                 info={
-                    "model_id": f"gemini/${self.model_id}",
-                    "input_tokens": input_cost,
-                    "output_tokens": output_cost
+                    "model_id": f"gemini/{self.model_id}",
+                    "input_tokens": response.usage_metadata.prompt_token_count,
+                    "output_tokens": response.usage_metadata.candidates_token_count
                 }
             )
 
             prediction = full_text.strip()
         except Exception as e:
             print(f"Gemini ({self.model_id}): Error during API call: {e}")
-            prediction = ""
-            cost = 0.0 # Keep existing cost logic
+            raise e
 
         return OCRModelResponse(
             prediction=prediction,
@@ -129,8 +128,8 @@ class _GeminiBase(OCRBaseModel, abc.ABC):
 # --- Specific Gemini Model Implementations ---
 
 class Gemini_1_5_Pro(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(model_id="gemini-1.5-pro", rpm=1000, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-1.5-pro", rpm=1000)
 
 
     def info(self) -> OCRModelInfo:
@@ -138,36 +137,36 @@ class Gemini_1_5_Pro(_GeminiBase):
             name="Gemini 1.5 Pro",
             version=self.model_id, # Use the actual model_id
             tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Gemini_1_5_Flash(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        # Pass specific RPM (2000) to base
-        super().__init__(model_id="gemini-1.5-flash", rpm=2000, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-1.5-flash", rpm=2000)
 
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 1.5 Flash",
             version=self.model_id,
             tags=["cloud", "lmm"],
+            cost_type="api"
         )
 
 class Gemini_1_5_Flash_8B(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        # Pass specific RPM (4000) to base
-        super().__init__(model_id="gemini-1.5-flash-8b", rpm=4000, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-1.5-flash-8b", rpm=4000)
 
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 1.5 Flash-8B",
             version=self.model_id,
             tags=["cloud", "lmm"],
+            cost_type="api"
         )
 
 class Gemini_2_5_Pro_Preview(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        # Pass specific RPM (150) to base
-        super().__init__(model_id="gemini-2.5-pro-preview-03-25", rpm=150, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-2.5-pro-preview-03-25", rpm=150)
 
 
     def info(self) -> OCRModelInfo:
@@ -175,26 +174,29 @@ class Gemini_2_5_Pro_Preview(_GeminiBase):
             name="Gemini 2.5 Pro Preview",
             version=self.model_id,
             tags=["cloud", "lmm"],
+            cost_type="api"
         )
 
 class Gemini_2_0_Flash(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(model_id="gemini-2.0-flash", rpm=2000, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-2.0-flash", rpm=2000)
 
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 2.0 Flash",
             version=self.model_id,
             tags=["cloud", "lmm"],
+            cost_type="api"
         )
 
 class Gemini_2_0_Flash_Lite(_GeminiBase):
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(model_id="gemini-2.0-flash-lite", rpm=4000, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="gemini-2.0-flash-lite", rpm=4000)
 
     def info(self) -> OCRModelInfo:
         return OCRModelInfo(
             name="Gemini 2.0 Flash-Lite",
             version=self.model_id,
             tags=["cloud", "lmm"],
+            cost_type="api"
         )

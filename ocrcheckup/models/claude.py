@@ -14,11 +14,11 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
     Abstract base class for Anthropic Claude models.
     Handles common initialization (API key, client, rate limiter) and evaluation logic.
     """
-    def __init__(self, model_id: str, rpm: int, cost_per_second: float = None):
+    def __init__(self, model_id: str, rpm: int):
         # Create RateLimiter instance using passed rpm
         limiter = RateLimiter(rpm)
         # Pass limiter to superclass
-        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        super().__init__(rate_limiter=limiter)
         self.model_id = model_id # Store model version for API call
 
         # Configure Anthropic client with API Key from environment variable
@@ -113,83 +113,90 @@ class _ClaudeBase(OCRBaseModel, abc.ABC):
 # --- Specific Claude Model Implementations ---
 
 class Claude_3_Opus(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         # Specific model ID and RPM for Opus
-        super().__init__(model_id="claude-3-opus-20240229", rpm=50, cost_per_second=cost_per_second)
+        super().__init__(model_id="claude-3-opus-20240229", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3 Opus",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api"
         )
 
 class Claude_3_Sonnet(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(model_id="claude-3-sonnet-20240229", rpm=50, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="claude-3-sonnet-20240229", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3 Sonnet",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Claude_3_Haiku(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(model_id="claude-3-haiku-20240307", rpm=50, cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__(model_id="claude-3-haiku-20240307", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3 Haiku",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Claude_3_5_Sonnet(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         # Refers to the original 3.5 Sonnet release
-        super().__init__(model_id="claude-3-5-sonnet-20240620", rpm=50, cost_per_second=cost_per_second)
+        super().__init__(model_id="claude-3-5-sonnet-20240620", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3.5 Sonnet",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Claude_3_5_Sonnet_V2(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         # This corresponds to claude-3-5-sonnet-20241022 (latest)
-        super().__init__(model_id="claude-3-5-sonnet-20241022", rpm=50, cost_per_second=cost_per_second)
+        super().__init__(model_id="claude-3-5-sonnet-20241022", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3.5 Sonnet v2", # Distinguish name
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Claude_3_5_Haiku(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         # This corresponds to claude-3-5-haiku-20241022 (latest)
-        super().__init__(model_id="claude-3-5-haiku-20241022", rpm=50, cost_per_second=cost_per_second)
+        super().__init__(model_id="claude-3-5-haiku-20241022", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3.5 Haiku",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         )
 
 class Claude_3_7_Sonnet(_ClaudeBase):
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         # This corresponds to claude-3-7-sonnet-20250219 (latest)
-        super().__init__(model_id="claude-3-7-sonnet-20250219", rpm=50, cost_per_second=cost_per_second)
+        super().__init__(model_id="claude-3-7-sonnet-20250219", rpm=50)
 
     def info(self):
         return OCRModelInfo(
             name="Claude 3.7 Sonnet",
             version=self.model_id,
-            tags=["cloud", "lmm"]
+            tags=["cloud", "lmm"],
+            cost_type="api",
         ) 

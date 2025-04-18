@@ -14,10 +14,10 @@ class Idefics2(OCRBaseModel):
             cost_type="compute",
         )
 
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         model_info = self.info()
         self.model_id = model_info.version
-        super().__init__(cost_per_second=cost_per_second, model_id=self.model_id)
+        super().__init__(model_id=self.model_id)
 
         if torch.cuda.is_available():
             DEVICE = "cuda:0"

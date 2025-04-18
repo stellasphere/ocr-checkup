@@ -19,9 +19,9 @@ class _RoboflowBase(OCRBaseModel, abc.ABC):
     Handles common initialization (API key, client, rate limiter, workspace/workflow IDs)
     and evaluation logic using inference_sdk.
     """
-    def __init__(self, model_id: str, rpm: int = 100, cost_per_second: float = None):
+    def __init__(self, model_id: str, rpm: int = 100):
         limiter = RateLimiter(rpm)
-        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        super().__init__(rate_limiter=limiter)
         self.model_id = model_id # This is the model parameter for the workflow
 
         # --- Configuration from Environment Variables ---
@@ -75,7 +75,8 @@ class _RoboflowBase(OCRBaseModel, abc.ABC):
             parameters={
                 # Pass the specific model ID as a parameter to the workflow
                 "model": self.model_id.replace("-roboflow-hosted", "")
-            }
+            },
+            use_cache=False
         )
         base_model_id = self.model_id.replace("-roboflow-hosted", "")
         elapsed_time = time.perf_counter() - start_time
@@ -107,23 +108,25 @@ class _RoboflowBase(OCRBaseModel, abc.ABC):
 
 
 class Florence2Large(_RoboflowBase):
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(model_id="florence-2-large-roboflow-hosted", cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__(model_id="florence-2-large-roboflow-hosted")
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "Florence 2 Large",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )
 
 class Florence2Base(_RoboflowBase):
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(model_id="florence-2-base-roboflow-hosted", cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__(model_id="florence-2-base-roboflow-hosted")
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "Florence 2 Base",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )

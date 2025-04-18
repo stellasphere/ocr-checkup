@@ -14,13 +14,12 @@ class TrOCR(OCRBaseModel):
             cost_type='compute' # Cost is based on compute time
         )
 
-    def __init__(self, cost_per_second: float = None): # Accept cost_per_second
+    def __init__(self):
         # Get model info to retrieve version/checkpoint name
         model_info = self.info()
         self.model_id = model_info.version # Set model_id from info
 
-        # Pass cost_per_second and any other relevant config for identifier generation
-        super().__init__(cost_per_second=cost_per_second, model_id=self.model_id)
+        super().__init__(model_id=self.model_id)
 
         # Determine device
         if torch.cuda.is_available():
@@ -56,8 +55,6 @@ class TrOCR(OCRBaseModel):
         # Decode the generated IDs to text
         result = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
-        # Return the response. Cost is calculated automatically by run_for_eval
-        # if cost_per_second was provided during initialization.
         return OCRModelResponse(
             prediction=result
         )

@@ -21,8 +21,8 @@ class EasyOCR(OCRBaseModel):
             cost_type='compute'
         )
 
-    def __init__(self, cost_per_second: float = None):
-        super().__init__(cost_per_second=cost_per_second)
+    def __init__(self):
+        super().__init__()
 
         use_gpu = False
         if torch.cuda.is_available():

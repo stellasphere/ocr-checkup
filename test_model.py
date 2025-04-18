@@ -19,7 +19,6 @@ TEST_IMAGE_PATH = "datasets/industrial-focus-scene/test/chrome_8v7GsBtbvv_png.rf
 # If you have an idea of how much your compute costs (e.g., $0.001/sec), set it here.
 # Otherwise, set to None and cost will not be calculated automatically.
 # Note: Some models might have their own cost calculation mechanisms.
-COMPUTE_COST_PER_SEC = None # Example: 0.001
 
 # --- Model Selection & Initialization ---
 # !!! CHANGE THIS LINE TO TEST A DIFFERENT MODEL !!!
@@ -30,10 +29,11 @@ COMPUTE_COST_PER_SEC = None # Example: 0.001
 # model_to_test = TrOCR()
 # model_to_test = EasyOCR()
 # model_to_test = Idefics2()
-# model_to_test = Gemini_1_5_Pro()
-model_to_test = Florence2Large()
+model_to_test = Gemini_1_5_Pro()
+# model_to_test = Florence2Large()
 # model_to_test = Claude_3_5_Haiku()
 # model_to_test = MistralOCR()
+# model_to_test = Qwen_2_5_VL_7B()
 
 # --- Initialization & Testing ---
 model_name = model_to_test.info().name if hasattr(model_to_test, 'info') else "Selected Model"
@@ -73,7 +73,8 @@ if response.cost_details is not None:
     print(f"Cost Details: {response.cost_details}")
 else:
     print("Cost: Not calculated (cost_per_second not provided or model doesn't report cost)")
-cost_calculator = ModelCostCalculator.default()
+COMPUTE_COST_PER_SEC = 0.0001
+cost_calculator = ModelCostCalculator.default(runtime_cost_per_second=COMPUTE_COST_PER_SEC)
 cost = cost_calculator.calculate_single_cost(response.cost_details)
 
 # --- Results ---

@@ -72,21 +72,20 @@ class ModelCostCalculator:
     Calculates the monetary cost of model inferences based on ModelCost data.
 
     Uses provided pricing data (ModelPricing instances) for external/variable rate models
-    and compute cost parameters for local execution.
+    and a direct runtime cost per second for local execution.
 
     Attributes:
         pricing_data (Optional[Dict[str, ModelPricing]]): Dictionary mapping model IDs
                                         to their ModelPricing instances.
                                         Required for calculating EXTERNAL costs.
-        compute_cost_params (Optional[Dict]): Dictionary with parameters for compute
-                                              cost (e.g., 'cost_per_second').
-                                              Required for calculating COMPUTE costs.
+        runtime_cost_per_second (float): The cost rate (e.g., USD per second)
+                                                  for compute time.
+                                                  Required for calculating COMPUTE costs.
     """
     def __init__(
         self,
-        # Updated type hint for pricing_data
-        pricing_data: Optional[Dict[str, ModelPricing]] = None,
-        compute_cost_params: Optional[Dict[str, Union[float, str]]] = None
+        runtime_cost_per_second: float,
+        pricing_data: Optional[Dict[str, ModelPricing]] = None
     ):
         # Ensure pricing_data contains ModelPricing instances
         if pricing_data:
@@ -94,8 +93,16 @@ class ModelCostCalculator:
                 if not isinstance(pricing, ModelPricing):
                     raise TypeError(f"pricing_data must contain ModelPricing instances, but found {type(pricing)} for key '{model_id}'")
         self.pricing_data = pricing_data or {}
-        self.compute_cost_params = compute_cost_params or {}
-        print(f"ModelCostCalculator initialized. # Pricing models: {len(self.pricing_data)}")
+
+        # Store runtime_cost_per_second directly and validate
+        try:
+            self.runtime_cost_per_second = float(runtime_cost_per_second)
+            if self.runtime_cost_per_second < 0:
+                raise ValueError("runtime_cost_per_second cannot be negative.")
+        except (ValueError, TypeError):
+            raise ValueError(f"runtime_cost_per_second must be a non-negative number, got: {runtime_cost_per_second}")
+
+        print(f"ModelCostCalculator initialized. # Pricing models: {len(self.pricing_data)}, Runtime Cost/Sec: {self.runtime_cost_per_second}")
 
     def calculate_single_cost(self, model_cost: ModelCost) -> Optional[float]:
         """
@@ -174,31 +181,27 @@ class ModelCostCalculator:
         return total_cost
 
     def _calculate_compute_cost(self, info: Dict[str, Any]) -> float:
-        """Calculates cost based on compute resources."""
+        """Calculates cost based on compute resources using the instance's runtime_cost_per_second."""
         runtime = info.get("runtime_seconds")
 
         if runtime is None:
             raise ValueError("Missing 'runtime_seconds' in info for COMPUTE cost calculation.")
 
-        if not self.compute_cost_params:
-            raise ValueError("Missing 'compute_cost_params' in calculator for COMPUTE cost calculation.")
-
-        cost_per_second = self.compute_cost_params.get("cost_per_second")
-        if cost_per_second is None:
-            raise ValueError("Missing 'cost_per_second' in calculator's compute_cost_params for COMPUTE cost calculation.")
+        # Use the instance attribute directly
+        cost_per_second = self.runtime_cost_per_second
 
         try:
             runtime_float = float(runtime)
-            cost_per_second_float = float(cost_per_second)
+            # cost_per_second is already validated in __init__
             if runtime_float < 0:
                  raise ValueError("runtime_seconds cannot be negative")
-            if cost_per_second_float < 0:
-                 raise ValueError("cost_per_second cannot be negative")
+            # No need to check cost_per_second_float negativity here, done in __init__
 
-            cost = runtime_float * cost_per_second_float
+            cost = runtime_float * cost_per_second
             return cost
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Invalid compute cost input: runtime='{runtime}', cost_per_second='{cost_per_second}'. Error: {e}")
+            # Simplified error message as cost_per_second comes from init
+            raise ValueError(f"Invalid compute cost input: runtime='{runtime}'. Error: {e}")
 
     def calculate_batch_cost(self, model_costs: List[ModelCost]) -> List[Optional[float]]:
         """
@@ -249,6 +252,9 @@ class ModelCostCalculator:
             },
             "roboflow-serverless": {
                 "elapsed_time": (1/500)*3 # 1 credit for 500 seconds, 3 dollars per credit
+            },
+            "roboflow-hosted": {
+                "inferences": (1/1000)*3 # 1 credit for 1000 inferences, 3 dollars per credit
             }
         }
 
@@ -260,14 +266,14 @@ class ModelCostCalculator:
 
 
     @staticmethod
-    def default():
+    def default(runtime_cost_per_second: float):
         # Combine LiteLLM and default pricing info
         litellm_data = ModelCostCalculator.import_litellm_costs()
         default_pricing = ModelCostCalculator.import_default_costs()
 
         pricing_data = {**litellm_data, **default_pricing}
 
-        return ModelCostCalculator(pricing_data=pricing_data)
+        return ModelCostCalculator(runtime_cost_per_second=runtime_cost_per_second, pricing_data=pricing_data)
 
         
 

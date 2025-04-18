@@ -18,9 +18,9 @@ class MistralOCR(OCRBaseModel):
             cost_type="api"
         )
 
-    def __init__(self, cost_per_second: float = None):
+    def __init__(self):
         limiter = RateLimiter(requests_per_minute=360)
-        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        super().__init__(rate_limiter=limiter)
 
         self.model_id = self.info().version
 

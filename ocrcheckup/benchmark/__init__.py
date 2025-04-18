@@ -14,7 +14,7 @@ from typing import List, Union, Optional
 import json
 from roboflow import Roboflow
 import cv2
-
+from ocrcheckup.cost import ModelCost
 
 class Benchmark:
     def __init__(self, name, images=[], annotations=[], metadata=[]):
@@ -32,6 +32,8 @@ class Benchmark:
         use_autosave: bool = True,
         overwrite: Union[bool, List[str]] = False,
         run_models: bool = True,
+        time_between_runs: int = 0,
+        autosave_fail_threshold: float = 1,
     ):
         """
         Benchmark OCR models against the dataset.
@@ -47,6 +49,7 @@ class Benchmark:
                 If True, overwrite all. If False, overwrite none.
                 If a list of model names (str), overwrite only those specific models.
                 Defaults to False.
+            time_between_runs (int, optional): Number of seconds to wait between running models. Defaults to 0.
             
         Returns:
             BenchmarkResults: Aggregated results of the benchmark.
@@ -95,6 +98,17 @@ class Benchmark:
                                      if ran_images != expected_images:
                                          print(f"    Validation Error: Image count mismatch (autosave: {ran_images}, expected: {expected_images})")
                                          valid_autosave = False
+                                     else:
+                                         for idx, response in enumerate(autosaved_model_result.indexed_results):
+                                             if response is not None:
+                                                if not hasattr(response, 'cost_details'):
+                                                     print(f"    Validation Error: Result at index {idx} missing 'cost_details' attribute.")
+                                                     valid_autosave = False
+                                                     break
+                                                elif not isinstance(response.cost_details, ModelCost):
+                                                     print(f"    Validation Error: Result at index {idx} 'cost_details' is not a ModelCost instance (type: {type(response.cost_details)}).")
+                                                     valid_autosave = False
+                                                     break
 
                                 if valid_autosave:
                                     print(f"    Using valid autosaved result for {model_info.name} v{model_info.version}.")
@@ -140,6 +154,8 @@ class Benchmark:
 
                 for ground_idx, image in tqdm(enumerate(self.images), total=len(self.images), desc=f"  {model_info.name}"):
                     model_image_result = model.run_for_eval(image)
+                    if time_between_runs > 0:
+                        time.sleep(time_between_runs)
                     model_result.add_result(ground_idx, model_image_result)
 
                 print(f"  Model {model_info.name} finished testing.")
@@ -150,8 +166,11 @@ class Benchmark:
 
                 if create_autosave:
                     can_autosave = True
-                    if not create_autosave_with_fails and success_percentage < 100.0:
-                        print(f"  Skipping autosave for {model_info.name}: Success rate ({success_percentage:.2f}%) is less than 100% and create_autosave_with_fails is False.")
+                    if success_percentage < autosave_fail_threshold:
+                        print(f"  Skipping autosave for {model_info.name}: Success rate ({success_percentage:.2f}%) is less than {autosave_fail_threshold}%.")
+                        can_autosave = False
+                    elif not create_autosave_with_fails:
+                        print(f"  Skipping autosave for {model_info.name}: Success rate ({success_percentage:.2f}%) is less than {autosave_fail_threshold}% and create_autosave_with_fails is False.")
                         can_autosave = False
 
                     if can_autosave:
@@ -381,7 +400,7 @@ class BenchmarkModelResult:
              raise AttributeError(f"Loaded BenchmarkModelResult is missing 'indexed_results' attribute from path: {path}")
         return data
 
-    def showcase(self, max_count=12, size=(12, 12), grid_size=(3, 4)):
+    def showcase(self, max_count=20, size=(20, 30), grid_size=(5, 4)):
         if max_count > len(self.indexed_results):
              max_count = len(self.indexed_results)
              print(f"Warning: max_count reduced to {max_count} (number of results)")
@@ -406,6 +425,7 @@ class BenchmarkModelResult:
                   titles.append("MISSING")
 
         sv.plot_images_grid(images, grid_size=grid_size, titles=titles, size=size)
+       # sv.plot_images_grid(images, grid_size=grid_size)
 
     def failed_percent(self):
         if not self.indexed_results:

@@ -8,7 +8,7 @@ from PIL import Image
 import base64
 from ..rate_limiter import RateLimiter
 from ocrcheckup.cost import ModelCost, CostType
-
+from .consts import OCR_VLM_PROMPT
 # Abstract Base Class for OpenAI models
 class _OpenAIBase(OCRBaseModel, abc.ABC):
     """
@@ -16,11 +16,11 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
     Handles common initialization (API key, client, rate limiter) and evaluation logic.
     """
     # Accept rpm as argument
-    def __init__(self, model_id: str, rpm: int, cost_per_second: float = None):
+    def __init__(self, model_id: str, rpm: int):
         # Create RateLimiter instance using passed rpm
         limiter = RateLimiter(rpm)
         # Pass limiter to superclass
-        super().__init__(cost_per_second=cost_per_second, rate_limiter=limiter)
+        super().__init__(rate_limiter=limiter)
         self.model_id = model_id
 
         # Configure OpenAI client with API Key from environment variable
@@ -28,14 +28,14 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set.")
         try:
-            # Initialize the client
+            print(f"Initializing OpenAI client with API key: {api_key}")
             self.client = OpenAI(api_key=api_key)
         except Exception as e:
             print(f"OpenAI Client initialization failed: {e}")
             raise
 
         # Common configurations (can be overridden if needed, though less common for OpenAI API structure)
-        self.prompt = "Read the text in the image. Return only the text as it is visible in the image."
+        self.prompt = OCR_VLM_PROMPT
 
 
     @abc.abstractmethod
@@ -94,8 +94,8 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
                 cost_type=CostType.EXTERNAL,
                 info={
                     "model_id": self.model_id,
-                    "input_token": response.usage.prompt_tokens,
-                    "output_token": response.usage.completion_tokens
+                    "input_tokens": response.usage.prompt_tokens,
+                    "output_tokens": response.usage.completion_tokens
                 }
             )
 
@@ -103,8 +103,7 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
 
         except Exception as e:
             print(f"OpenAI ({self.model_id}): Error during API call: {e}")
-            # prediction remains ""
-            # cost remains 0.0
+            raise e
 
         return OCRModelResponse(
             prediction=prediction,
@@ -115,32 +114,34 @@ class _OpenAIBase(OCRBaseModel, abc.ABC):
 # --- Specific OpenAI Model Implementations ---
 
 class GPT_4o(_OpenAIBase):
-  def __init__(self, cost_per_second: float = None):
+  def __init__(self):
     # Use specific model ID for GPT-4o
-    super().__init__(model_id="gpt-4o-2024-05-13", rpm=500, cost_per_second=cost_per_second) # Updated RPM to 500
+    super().__init__(model_id="gpt-4o-2024-05-13", rpm=500) # Updated RPM to 500
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "GPT-4o",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )
 
 class O1(_OpenAIBase):
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(model_id="o1-2024-12-17", rpm=500, cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__(model_id="o1-2024-12-17", rpm=500)
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "o1",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )
 
 # -- API does not support images for o3 and o1 mini at this time
 # class O3_mini(_OpenAIBase):
-#   def __init__(self, cost_per_second: float = None):
-#     super().__init__(model_id="o3-mini-2025-01-31", rpm=500, cost_per_second=cost_per_second)
+#   def __init__(self):
+#     super().__init__(model_id="o3-mini-2025-01-31", rpm=500)
 
 #   def info(self) -> OCRModelInfo:
 #     return OCRModelInfo(
@@ -150,8 +151,8 @@ class O1(_OpenAIBase):
 #     )
 
 # class O1_mini(_OpenAIBase):
-#   def __init__(self, cost_per_second: float = None):
-#     super().__init__(model_id="o1-mini-2024-09-12", rpm=500, cost_per_second=cost_per_second)
+#   def __init__(self):
+#     super().__init__(model_id="o1-mini-2024-09-12", rpm=500)
 
 #   def info(self) -> OCRModelInfo:
 #     return OCRModelInfo(
@@ -161,23 +162,25 @@ class O1(_OpenAIBase):
 #     )
 
 class GPT_4_5_Preview(_OpenAIBase):
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(model_id="gpt-4.5-preview-2025-02-27", rpm=500, cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__(model_id="gpt-4.5-preview-2025-02-27", rpm=500)
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "GPT-4.5 Preview",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )
 
 class GPT_4o_Mini(_OpenAIBase):
-  def __init__(self, cost_per_second: float = None):
-    super().__init__(model_id="gpt-4o-mini-2024-07-18", rpm=500, cost_per_second=cost_per_second)
+  def __init__(self):
+    super().__init__(model_id="gpt-4o-mini-2024-07-18", rpm=500)
 
   def info(self) -> OCRModelInfo:
     return OCRModelInfo(
       name = "GPT-4o mini",
       version = self.model_id,
-      tags = ["cloud", "lmm"]
+      tags = ["cloud", "lmm"],
+      cost_type="api"
     )

@@ -24,6 +24,8 @@ class OCRModelResponse:
                 "There should be a prediction is the response was successfull"
             )
 
+        assert isinstance(cost_details, ModelCost) or cost_details is None, f"cost_details must be a ModelCost instance or None, got {type(cost_details)}"
+
         self.prediction = prediction
         self.cost_details = cost_details
         self.success = success
@@ -43,12 +45,11 @@ class OCRModelInfo:
     # Added 'local' tag
     VALID_COST_TYPES = ["api", "compute", None] # Added cost types
 
-    def __init__(self, name: str, version: str, tags: list, cost_type: str = None, config_identifier: str = None) -> None:
+    def __init__(self, name: str, version: str, tags: list, cost_type: str = None) -> None:
         self.name = name
         self.version = version
         self.tags = tags
-        self.cost_type = cost_type # Added cost_type attribute
-        self.config_identifier = config_identifier # Added config_identifier attribute
+        self.cost_type = cost_type 
 
         assert all(tag in self.VALID_TAGS for tag in tags)
         assert cost_type in self.VALID_COST_TYPES
@@ -60,44 +61,10 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
         """Subclasses must implement this to return model information."""
         raise NotImplementedError("info must be implemented by a subclass")
 
-    def __init__(self, cost_per_second: float = None, rate_limiter: RateLimiter | None = None, **kwargs):
-        self.cost_per_second = cost_per_second # Store cost_per_second
-        self.config_params = kwargs # Store arbitrary configuration parameters
-        self._rate_limiter = rate_limiter # Store passed rate limiter
+    def __init__(self, rate_limiter: RateLimiter | None = None, **kwargs):
+        self.config_params = kwargs 
+        self._rate_limiter = rate_limiter
         return None
-
-    def get_config_identifier(self, max_len=50) -> str:
-        """Generates a stable, filesystem-safe identifier from config_params."""
-        if not self.config_params:
-            return "default"
-
-        # Create a sorted, canonical JSON string representation
-        try:
-            # Sort keys for stability, handle non-string values
-            sorted_params = dict(sorted(self.config_params.items()))
-            config_str = json.dumps(sorted_params, sort_keys=True, separators=(',', ':'))
-        except TypeError:
-            # Fallback for non-JSON serializable types (less ideal)
-            config_str = str(dict(sorted(self.config_params.items())))
-
-
-        # Basic sanitization for filesystem compatibility
-        # Replace common problematic characters
-        safe_str = "".join(c if c.isalnum() or c in ('-', '_', '=', ':') else '_' for c in config_str)
-        # Remove potential leading/trailing underscores/hyphens and multiple consecutive underscores
-        safe_str = safe_str.strip('_-')
-        while '__' in safe_str:
-            safe_str = safe_str.replace('__', '_')
-
-
-        # Optional: Hash if the string is too long (or always hash for consistency)
-        # Using SHA-1 for a shorter hash, collision risk is low for typical config counts
-        # if len(safe_str) > max_len:
-        #     return hashlib.sha1(safe_str.encode()).hexdigest()[:10] # Short hash
-
-        # Return the sanitized string (potentially truncated)
-        return safe_str[:max_len].rstrip('_-') # Truncate and clean end
-
 
     def test(self):
         try:
@@ -155,7 +122,7 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
             result = OCRModelResponse(
                  success=False,
                  error_message=str(e), # Use str(e)
-                 cost_details = getattr(result, 'cost_details', None), # Preserve cost_details if evaluate partially ran
+                 cost_details = getattr(result, 'cost_details', ModelCost(cost_type=CostType.COMPUTE, info={"runtime_seconds": elapsed_time})), # Preserve cost_details if evaluate partially ran
                  elapsed_time = elapsed_time,
                  start_time = start_time
             )
@@ -167,10 +134,18 @@ class OCRBaseModel(metaclass=abc.ABCMeta):
         if result.start_time is None:
              result.start_time = start_time
 
+        # If cost type is compute, then set cost details to compute if it isn't already set. 
+        if model_info.cost_type == "compute" and result.cost_details is None:
+            result.cost_details = ModelCost(
+                cost_type=CostType.COMPUTE,
+                info={"runtime_seconds": result.elapsed_time}
+            )
+
 
         assert isinstance(result, OCRModelResponse), f"Model did not return OCRModelResponse, got {type(result)}"
         assert result.elapsed_time is not None, "Elapsed time not set"
         assert result.start_time is not None, "Start time not set"
+        assert result.cost_details is not None, "Cost details not set"
 
 
         return result

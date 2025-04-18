@@ -1,5 +1,5 @@
 from ocrcheckup.benchmark.model import OCRBaseModel, OCRModelResponse, OCRModelInfo
-
+from ocrcheckup.cost import ModelCost, CostType
 from inference_sdk import InferenceHTTPClient
 
 class DocTR_RoboflowHosted(OCRBaseModel):
@@ -7,7 +7,8 @@ class DocTR_RoboflowHosted(OCRBaseModel):
     return OCRModelInfo(
       name = "DocTR",
       version = "roboflow-hosted",
-      tags = ["cloud"]
+      tags = ["cloud"],
+      cost_type = "api"
     )
 
   def __init__(self,api_key):
@@ -25,5 +26,11 @@ class DocTR_RoboflowHosted(OCRBaseModel):
 
     return OCRModelResponse(
       prediction=text,
-      cost=0.003
+      cost_details=ModelCost(
+        cost_type=CostType.EXTERNAL,
+        info={
+          "model_id": "roboflow-hosted",
+          "inferences": 1
+        }
+      )
     )
