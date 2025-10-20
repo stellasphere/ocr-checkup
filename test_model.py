@@ -1,96 +1,63 @@
-import os
-import cv2
-from dotenv import load_dotenv
+import json
+from pathlib import Path
 
-# Import all models from the models module
-from ocrcheckup.models import *
-from ocrcheckup import utils
-from ocrcheckup.cost import ModelCostCalculator
-
-# Load environment variables (e.g., for API keys)
-load_dotenv()
-
-# --- Configuration ---
-# Select a test image from your dataset
-# Using one found in 'datasets/industrial-focus-scene/test'
-TEST_IMAGE_PATH = "datasets/industrial-focus-scene/test/chrome_8v7GsBtbvv_png.rf.5609cffeb8b1e57995cb64d35d94474b.jpg"
-
-# Optional: Estimate compute cost per second for the model
-# If you have an idea of how much your compute costs (e.g., $0.001/sec), set it here.
-# Otherwise, set to None and cost will not be calculated automatically.
-# Note: Some models might have their own cost calculation mechanisms.
-
-# --- Model Selection & Initialization ---
-# !!! CHANGE THIS LINE TO TEST A DIFFERENT MODEL !!!
-# Examples:
-# model_to_test = Moondream2(cost_per_second=COMPUTE_COST_PER_SEC)
-# model_to_test = DocTR_RoboflowHosted(api_key=os.environ.get("ROBOFLOW_API_KEY"))
-# model_to_test = GPT_4o(api_key=os.environ.get("OPENAI_API_KEY"), cost_per_second=COMPUTE_COST_PER_SEC)
-# model_to_test = TrOCR()
-# model_to_test = EasyOCR()
-# model_to_test = Idefics2()
-model_to_test = Gemini_1_5_Pro()
-# model_to_test = Florence2Large()
-# model_to_test = Claude_3_5_Haiku()
-# model_to_test = MistralOCR()
-# model_to_test = Qwen_2_5_VL_7B()
-
-# --- Initialization & Testing ---
-model_name = model_to_test.info().name if hasattr(model_to_test, 'info') else "Selected Model"
-print(f"Loading {model_name} model...")
-
-# Instantiate the selected model
-# (Already done above in the selection part)
-
-# Test if the model initializes correctly (optional but recommended)
-if hasattr(model_to_test, 'test') and not model_to_test.test():
-    print(f"{model_name} model failed initialization test. Exiting.")
-    exit()
-elif not hasattr(model_to_test, 'test'):
-     print(f"Note: {model_name} does not have a '.test()' method implemented.")
+from ocrcheckup.core.types import Dataset, Domain, Sample
+from ocrcheckup.core.types import build_sample_index
+from ocrcheckup.core.variant import Variant, AdapterRef, PricingRef
+from ocrcheckup.core.registry import model_families, adapters, pricing_models
+from ocrcheckup.families.examples.tesseract import family as tesseract_family
+from ocrcheckup.adapters.examples.mock import adapter as mock_adapter
+from ocrcheckup.pricing.builtins.local import pricing as local_pricing
+from ocrcheckup.normalization.normalizer import NormalizationSpec, Normalizer
+from ocrcheckup.evaluation.evaluators import AccuracyEvaluator, CorrectnessEvaluator, CostUSDEvaluator
+from ocrcheckup.runs.predict import run_prediction
+from ocrcheckup.runs.evaluate import run_evaluation
 
 
-print("\nLoading test image...")
-# Load the single test image using OpenCV
-image = cv2.imread(TEST_IMAGE_PATH)
+def test_pipeline_smoke(tmp_path: Path):
+    # Minimal in-memory dataset
+    samples = [
+        Sample(sample_id="s1", image_uri="/tmp/s1.png", ground_truth_raw="Hello, World!"),
+        Sample(sample_id="s2", image_uri="/tmp/s2.png", ground_truth_raw="OCR Checkup"),
+    ]
+    domain = Domain(domain_id="d1", name="demo", samples=samples)
+    dataset = Dataset(dataset_id="ds1", name="Demo", domains=[domain])
+    build_sample_index(dataset)  # exercise
 
-if image is None:
-    print(f"Error: Could not load image at {TEST_IMAGE_PATH}")
-    exit()
+    # Register components
+    model_families.register(tesseract_family)
+    adapters.register(mock_adapter)
+    pricing_models.register(local_pricing)
 
-# Ensure image is in RGB format (OpenCV loads as BGR by default)
-image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    # Variant
+    variant = Variant(
+        name="mock-variant",
+        family_id="tesseract",
+        fields={"lang": "eng"},
+        adapter=AdapterRef(id="mock"),
+        pricing=PricingRef(id="local"),
+    )
 
-# --- Evaluation ---
-print(f"\nRunning evaluation with {model_name} on image: {TEST_IMAGE_PATH}")
+    # Prediction
+    runs_path = tmp_path / "runs.jsonl"
+    run_id = run_prediction(dataset, variant, seed=0, out_path=runs_path)
 
-# Use the run_for_eval method which handles timing and potential errors
-response = model_to_test.run_for_eval(image_rgb)
+    # Evaluation
+    spec = NormalizationSpec(
+        unicode_form="NFC",
+        lowercase=True,
+        collapse_whitespace=True,
+        remove_punctuation=True,
+        spec_version="1",
+    )
+    normalizer = Normalizer(spec)
+    evaluators = [AccuracyEvaluator(), CorrectnessEvaluator(), CostUSDEvaluator()]
+    evals_path = tmp_path / "evals.jsonl"
+    evaluation_id = run_evaluation(dataset, variant, run_id, out_path=evals_path, normalizer=normalizer, evaluators=evaluators)
 
-# -- Cost Calculation --
-print(f"\n--- Cost Calculation ---")
-if response.cost_details is not None:
-    print(f"Cost Details: {response.cost_details}")
-else:
-    print("Cost: Not calculated (cost_per_second not provided or model doesn't report cost)")
-COMPUTE_COST_PER_SEC = 0.0001
-cost_calculator = ModelCostCalculator.default(runtime_cost_per_second=COMPUTE_COST_PER_SEC)
-cost = cost_calculator.calculate_single_cost(response.cost_details)
-
-# --- Results ---
-print(f"\n--- {model_name} Evaluation Results ---")
-if response.success:
-    print(f"Prediction:\n{response.prediction}")
-    print(f"\nElapsed Time: {response.elapsed_time:.4f} seconds")
-    if cost is not None:
-        print(f"Estimated Cost: ${cost:.6f}")
-    else:
-        print("Cost: Not calculated (cost_per_second not provided or model doesn't report cost)")
-else:
-    print(f"Evaluation Failed!")
-    print(f"Error Message: {response.error_message}")
-    print(f"Elapsed Time: {response.elapsed_time:.4f} seconds (until failure)")
-
-
-
-print("\nScript finished.") 
+    assert runs_path.exists() and evals_path.exists()
+    # Verify at least one evaluation record and expected metric keys
+    lines = evals_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == len(samples)
+    rec = json.loads(lines[0])
+    assert set(["accuracy", "correctness", "cost_usd"]) <= set(rec["metrics"].keys()) 
