@@ -53,7 +53,15 @@ def test_pipeline_smoke(tmp_path: Path):
     normalizer = Normalizer(spec)
     evaluators = [AccuracyEvaluator(), CorrectnessEvaluator(), CostUSDEvaluator()]
     evals_path = tmp_path / "evals.jsonl"
-    evaluation_id = run_evaluation(dataset, variant, run_id, out_path=evals_path, normalizer=normalizer, evaluators=evaluators)
+    evaluation_id = run_evaluation(
+        dataset,
+        variant,
+        run_id,
+        out_path=evals_path,
+        normalizer=normalizer,
+        evaluators=evaluators,
+        pred_path=runs_path,
+    )
 
     assert runs_path.exists() and evals_path.exists()
     # Verify at least one evaluation record and expected metric keys

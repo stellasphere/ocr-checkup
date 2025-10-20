@@ -33,6 +33,7 @@ def run_evaluation(
     out_path: Path,
     normalizer: Normalizer,
     evaluators: List[Evaluator],
+    pred_path: Path | str | None = None,
 ) -> str:
     evaluation_id = new_evaluation_id()
     erun = EvaluationRun(
@@ -44,7 +45,7 @@ def run_evaluation(
 
     index = build_sample_index(dataset)
 
-    pred_path = Path("runs") / f"{run_id}.jsonl"
+    pred_path = Path(pred_path) if pred_path is not None else (Path("runs") / f"{run_id}.jsonl")
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
