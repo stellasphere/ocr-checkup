@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import List, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from ocrcheckup.core.ids import new_evaluation_id
 from ocrcheckup.core.jsonl import iterate_jsonl, jsonl_writer
@@ -19,10 +19,11 @@ from ocrcheckup.normalization.normalizer import Normalizer
 
 
 class EvaluationRun(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     evaluation_id: str
     run_id: str
     normalizer: Normalizer
-    evaluators: List[Evaluator]
+    evaluators: List[Any]
 
 
 def run_evaluation(
@@ -45,7 +46,7 @@ def run_evaluation(
 
     index = build_sample_index(dataset)
 
-    pred_path = Path(pred_path) if pred_path is not None else (Path("runs") / f"{run_id}.jsonl")
+    pred_path = Path(pred_path) if pred_path is not None else (Path("results") / "runs" / f"{run_id}.jsonl")
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 

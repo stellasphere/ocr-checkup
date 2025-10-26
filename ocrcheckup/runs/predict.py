@@ -30,7 +30,7 @@ def run_prediction(
     variant: Variant,
     *,
     seed: int,
-    out_dir: Path | str | None = Path("runs"),
+    out_dir: Path | str | None = Path("results") / "runs",
     out_path: Path | str | None = None,
 ) -> str:
     run_id = new_run_id()
@@ -64,11 +64,11 @@ def run_prediction(
     rng = random.Random(seed)
     rng.shuffle(all_samples)
 
-    # Prepare output file at runs/<run_id>.jsonl (or custom paths)
+    # Prepare output file at results/runs/<run_id>.jsonl (or custom paths)
     if out_path is not None:
         out_file = Path(out_path)
     else:
-        base_dir = Path(out_dir) if out_dir is not None else Path("runs")
+        base_dir = Path(out_dir) if out_dir is not None else (Path("results") / "runs")
         out_file = base_dir / f"{run_id}.jsonl"
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
