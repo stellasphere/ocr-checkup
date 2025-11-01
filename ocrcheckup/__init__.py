@@ -5,6 +5,7 @@ from .normalization.normalizer import NormalizationSpec, Normalizer
 from .evaluation.evaluators import AccuracyEvaluator, CorrectnessEvaluator, CostUSDEvaluator
 from .runs.predict import run_prediction
 from .runs.evaluate import run_evaluation
+from .catalog import register_default_components
 
 __all__ = [
     # Core types
@@ -29,6 +30,7 @@ __all__ = [
     # Runs
     "run_prediction",
     "run_evaluation",
+    "register_default_components",
 ]
 
 __version__ = "0.1.0"

@@ -3,11 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from ocrcheckup.core.types import load_dataset
-from ocrcheckup.core.registry import model_families, adapters, pricing_models
+from ocrcheckup import register_default_components
 from ocrcheckup.core.variant import Variant, AdapterRef, PricingRef
-from ocrcheckup.families.examples.tesseract import family as tesseract_family
-from ocrcheckup.adapters.tesseract_pytesseract import adapter as tess_adapter
-from ocrcheckup.pricing.builtins.local import pricing as local_pricing
 from ocrcheckup.normalization.normalizer import NormalizationSpec, Normalizer
 from ocrcheckup.evaluation.evaluators import AccuracyEvaluator, CorrectnessEvaluator, CostUSDEvaluator
 from ocrcheckup.runs.predict import run_prediction
@@ -18,10 +15,8 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     manifest = repo_root / "datasets" / "focused_scene.json"
 
-    # Register components
-    model_families.register(tesseract_family)
-    adapters.register(tess_adapter)
-    pricing_models.register(local_pricing)
+    # Register built-in components (includes tesseract + local pricing)
+    register_default_components()
 
     # Construct variant (real adapter)
     variant = Variant(
