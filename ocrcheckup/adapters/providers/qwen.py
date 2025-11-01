@@ -42,14 +42,15 @@ class QwenVisionAdapter:
         if self._model_id == model_id and self._model is not None:
             return
 
-        dtype_key = variant.fields.get("dtype", "auto")
+        adapter_cfg = variant.adapter.config or {}
+        dtype_key = adapter_cfg.get("torch_dtype", "auto")
         kwargs: Dict[str, Any] = {"trust_remote_code": True}
         if dtype_key and dtype_key != "auto":
             if dtype_key not in _DTYPE_MAP:
                 raise ValueError(f"Unsupported dtype '{dtype_key}' for Qwen adapter")
             kwargs["torch_dtype"] = _DTYPE_MAP[dtype_key]
 
-        device_override = variant.fields.get("device")
+        device_override = adapter_cfg.get("device")
         if device_override is not None:
             self._device_override = torch.device(str(device_override))
         else:
@@ -76,6 +77,7 @@ class QwenVisionAdapter:
         self._ensure_loaded(variant)
         assert self._model is not None and self._processor is not None
 
+        adapter_cfg = variant.adapter.config or {}
         prompt = str(variant.fields.get("prompt"))
         max_new_tokens = int(variant.fields.get("max_new_tokens", 512))
 
@@ -140,6 +142,10 @@ class QwenVisionAdapter:
             "model": self._model_id,
             "max_new_tokens": max_new_tokens,
         }
+        if self._device_override is not None:
+            metadata["device"] = str(self._device_override)
+        if adapter_cfg.get("torch_dtype") and adapter_cfg.get("torch_dtype") != "auto":
+            metadata["torch_dtype"] = adapter_cfg["torch_dtype"]
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 

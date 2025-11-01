@@ -1,24 +1,20 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Type
 
 from pydantic import BaseModel, Field
 
 from ocrcheckup.families.base import ModelFamily
 
 
-class RoboflowWorkflowFields(BaseModel):
-    workspace: str = Field(
-        ...,
+class _RoboflowWorkflowFields(BaseModel):
+    workspace: Literal["leo-ueno"] = Field(
+        default="leo-ueno",
         description="Roboflow workspace slug.",
     )
-    workflow: str = Field(
-        ...,
+    workflow: Literal["ocr"] = Field(
+        default="ocr",
         description="Workflow identifier to invoke.",
-    )
-    model: str = Field(
-        ...,
-        description="Model parameter passed to the workflow.",
     )
     parameters: Dict[str, Any] = Field(
         default_factory=dict,
@@ -30,24 +26,54 @@ class RoboflowWorkflowFields(BaseModel):
     )
 
 
-class RoboflowWorkflowFamily:
-    family_id = "roboflow-workflow"
-    display_name = "Roboflow Workflow"
-    description = "Custom OCR workflows hosted on Roboflow Inference API."
-    family_schema_version = "1"
-    fields_schema = RoboflowWorkflowFields
+class Florence2LargeFields(_RoboflowWorkflowFields):
+    model: Literal["florence-2-large-roboflow-hosted"] = Field(
+        default="florence-2-large-roboflow-hosted",
+        description="Workflow model parameter.",
+    )
+
+
+class Florence2BaseFields(_RoboflowWorkflowFields):
+    model: Literal["florence-2-base-roboflow-hosted"] = Field(
+        default="florence-2-base-roboflow-hosted",
+        description="Workflow model parameter.",
+    )
+
+
+class _RoboflowWorkflowFamily(ModelFamily):
+    family_schema_version = "2"
+    fields_schema: Type[BaseModel]
+    family_id: str
+    display_name: str
+    description: str | None
 
     def validate_fields(self, fields: dict) -> dict:
-        return RoboflowWorkflowFields.model_validate(fields).model_dump(
+        return self.fields_schema.model_validate(fields).model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
 
 
-family = RoboflowWorkflowFamily()
+class Florence2LargeFamily(_RoboflowWorkflowFamily):
+    family_id = "roboflow-florence-2-large"
+    display_name = "Florence 2 Large (Roboflow)"
+    description = "Florence 2 Large workflow hosted on Roboflow."
+    fields_schema = Florence2LargeFields
+
+
+class Florence2BaseFamily(_RoboflowWorkflowFamily):
+    family_id = "roboflow-florence-2-base"
+    display_name = "Florence 2 Base (Roboflow)"
+    description = "Florence 2 Base workflow hosted on Roboflow."
+    fields_schema = Florence2BaseFields
+
+
+florence_2_large_family = Florence2LargeFamily()
+florence_2_base_family = Florence2BaseFamily()
 
 
 __all__ = [
-    "RoboflowWorkflowFields",
-    "RoboflowWorkflowFamily",
-    "family",
+    "florence_2_large_family",
+    "florence_2_base_family",
+    "Florence2LargeFamily",
+    "Florence2BaseFamily",
 ]

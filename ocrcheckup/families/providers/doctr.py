@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,21 +8,17 @@ from ocrcheckup.families.base import ModelFamily
 
 
 class DocTRFields(BaseModel):
-    api_url: str = Field(
-        default="https://infer.roboflow.com",
-        description="Endpoint for the Roboflow DocTR hosted inference API.",
-    )
-    project: Optional[str] = Field(
-        default=None,
-        description="Optional project identifier to include in logging.",
+    model: Literal["roboflow-doctr"] = Field(
+        default="roboflow-doctr",
+        description="Identifier used for documentation purposes.",
     )
 
 
-class DocTRFamily:
-    family_id = "doctr-roboflow"
+class DocTRFamily(ModelFamily):
+    family_id = "doctr-roboflow-hosted"
     display_name = "DocTR (Roboflow Hosted)"
     description = "Roboflow-hosted DocTR OCR API."
-    family_schema_version = "1"
+    family_schema_version = "2"
     fields_schema = DocTRFields
 
     def validate_fields(self, fields: dict) -> dict:
@@ -34,8 +30,4 @@ class DocTRFamily:
 family = DocTRFamily()
 
 
-__all__ = [
-    "DocTRFields",
-    "DocTRFamily",
-    "family",
-]
+__all__ = ["DocTRFields", "DocTRFamily", "family"]

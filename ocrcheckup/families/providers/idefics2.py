@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -9,21 +9,13 @@ from ocrcheckup.utils.prompts import DEFAULT_OCR_INSTRUCTION
 
 
 class Idefics2Fields(BaseModel):
-    model: str = Field(
+    model: Literal["HuggingFaceM4/idefics2-8b"] = Field(
         default="HuggingFaceM4/idefics2-8b",
         description="Hugging Face identifier for Idefics2 checkpoint.",
     )
-    torch_dtype: Optional[str] = Field(
-        default="float16",
-        description="Torch dtype hint when loading weights.",
-    )
-    device: Optional[str] = Field(
-        default=None,
-        description="Optional device override.",
-    )
     prompt: str = Field(
         default=DEFAULT_OCR_INSTRUCTION,
-        description="Instruction appended to chat template before generation.",
+        description="Instruction appended before generation.",
     )
     max_new_tokens: int = Field(
         default=128,
@@ -33,11 +25,11 @@ class Idefics2Fields(BaseModel):
     )
 
 
-class Idefics2Family:
-    family_id = "idefics2"
-    display_name = "Idefics2"
+class Idefics2Family(ModelFamily):
+    family_id = "idefics2-8b"
+    display_name = "Idefics2 8B"
     description = "Idefics2 multimodal checkpoint via Transformers."
-    family_schema_version = "1"
+    family_schema_version = "2"
     fields_schema = Idefics2Fields
 
     def validate_fields(self, fields: dict) -> dict:
@@ -49,8 +41,4 @@ class Idefics2Family:
 family = Idefics2Family()
 
 
-__all__ = [
-    "Idefics2Fields",
-    "Idefics2Family",
-    "family",
-]
+__all__ = ["Idefics2Fields", "Idefics2Family", "family"]

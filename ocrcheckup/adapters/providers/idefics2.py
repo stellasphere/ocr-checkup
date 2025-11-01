@@ -46,9 +46,10 @@ class Idefics2Adapter:
         if self._model_id == model_id and self._model is not None:
             return
 
-        torch_dtype_key = variant.fields.get("torch_dtype", "float16")
+        adapter_cfg = variant.adapter.config or {}
+        torch_dtype_key = adapter_cfg.get("torch_dtype", "float16")
         torch_dtype = _DTYPE_MAP.get(torch_dtype_key, torch.float16)
-        device = self._resolve_device(variant.fields.get("device"))
+        device = self._resolve_device(adapter_cfg.get("device"))
 
         self._processor = AutoProcessor.from_pretrained(
             model_id,
@@ -113,12 +114,15 @@ class Idefics2Adapter:
         )
         prediction = output_text[0].strip() if output_text else ""
 
+        adapter_cfg = variant.adapter.config or {}
         metadata = {
             "provider": "idefics2",
             "model": self._model_id,
             "device": str(self._device),
             "max_new_tokens": max_new_tokens,
         }
+        if adapter_cfg.get("torch_dtype"):
+            metadata["torch_dtype"] = adapter_cfg["torch_dtype"]
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 

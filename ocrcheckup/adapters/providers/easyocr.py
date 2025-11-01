@@ -27,7 +27,8 @@ class EasyOCRAdapter:
 
     def _ensure_reader(self, variant: Variant) -> None:
         languages = tuple(variant.fields.get("languages", ["en"]))
-        gpu_override = variant.fields.get("gpu")
+        adapter_cfg = variant.adapter.config or {}
+        gpu_override = adapter_cfg.get("gpu")
 
         if gpu_override is None:
             use_gpu = torch.cuda.is_available()
@@ -45,7 +46,7 @@ class EasyOCRAdapter:
         self._ensure_reader(variant)
         assert self._reader is not None
 
-        detail = int(variant.fields.get("detail", 0))
+        detail = 0
         paragraph = bool(variant.fields.get("paragraph", False))
 
         image_path = Path(sample.image_uri)

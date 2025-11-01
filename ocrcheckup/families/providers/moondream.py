@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -9,7 +9,7 @@ from ocrcheckup.utils.prompts import DEFAULT_OCR_INSTRUCTION
 
 
 class MoondreamFields(BaseModel):
-    model: str = Field(
+    model: Literal["vikhyatk/moondream2"] = Field(
         default="vikhyatk/moondream2",
         description="Hugging Face repository id for Moondream checkpoint.",
     )
@@ -21,17 +21,13 @@ class MoondreamFields(BaseModel):
         default=DEFAULT_OCR_INSTRUCTION,
         description="Question passed to the model after encoding the image.",
     )
-    device: Optional[str] = Field(
-        default=None,
-        description="Optional torch device override (cpu, cuda, mps).",
-    )
 
 
-class MoondreamFamily:
-    family_id = "moondream"
-    display_name = "Moondream"
+class MoondreamFamily(ModelFamily):
+    family_id = "moondream2"
+    display_name = "Moondream2"
     description = "Moondream2 open-source vision-language checkpoint."
-    family_schema_version = "1"
+    family_schema_version = "2"
     fields_schema = MoondreamFields
 
     def validate_fields(self, fields: dict) -> dict:
@@ -43,8 +39,4 @@ class MoondreamFamily:
 family = MoondreamFamily()
 
 
-__all__ = [
-    "MoondreamFields",
-    "MoondreamFamily",
-    "family",
-]
+__all__ = ["MoondreamFields", "MoondreamFamily", "family"]

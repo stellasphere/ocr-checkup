@@ -37,8 +37,9 @@ class DocTRAdapter:
         self._client_key = signature
 
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
-        api_url = str(variant.fields.get("api_url", "https://infer.roboflow.com"))
-        api_key = (variant.adapter.config or {}).get("api_key") or os.getenv("ROBOFLOW_API_KEY")
+        adapter_cfg = variant.adapter.config or {}
+        api_url = str(adapter_cfg.get("api_url", "https://infer.roboflow.com"))
+        api_key = adapter_cfg.get("api_key") or os.getenv("ROBOFLOW_API_KEY")
         if not api_key:
             raise ValueError("DocTR adapter requires an API key via adapter.config['api_key'] or ROBOFLOW_API_KEY env var")
 

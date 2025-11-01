@@ -45,7 +45,8 @@ class MoondreamAdapter:
         ):
             return
 
-        device = self._resolve_device(variant.fields.get("device"))
+        adapter_cfg = variant.adapter.config or {}
+        device = self._resolve_device(adapter_cfg.get("device"))
 
         self._model = AutoModelForCausalLM.from_pretrained(
             model_id,
