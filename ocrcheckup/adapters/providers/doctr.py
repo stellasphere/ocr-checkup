@@ -13,7 +13,7 @@ from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class DocTRAdapter:
+class DoctrRoboflowHostedAdapter:
     id = "doctr-roboflow-hosted"
     description = "Roboflow-hosted DocTR API adapter"
 
@@ -59,13 +59,12 @@ class DocTRAdapter:
         metadata = {
             "provider": "roboflow",
             "model": "doctr",
-            "api_url": api_url,
         }
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = DocTRAdapter()
+adapter = DoctrRoboflowHostedAdapter()
 
 
-__all__ = ["adapter", "DocTRAdapter"]
+__all__ = ["adapter", "DoctrRoboflowHostedAdapter"]

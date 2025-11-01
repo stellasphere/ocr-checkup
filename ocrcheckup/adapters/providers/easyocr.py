@@ -14,7 +14,7 @@ from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class EasyOCRAdapter:
+class EasyOcrReaderAdapter:
     id = "easyocr-reader"
     description = "EasyOCR adapter"
 
@@ -67,16 +67,12 @@ class EasyOCRAdapter:
 
         metadata = {
             "provider": "easyocr",
-            "languages": list(variant.fields.get("languages", ["en"])),
-            "detail": detail,
-            "paragraph": paragraph,
-            "gpu": bool(self._reader_signature[1]) if self._reader_signature else None,
         }
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = EasyOCRAdapter()
+adapter = EasyOcrReaderAdapter()
 
 
-__all__ = ["adapter", "EasyOCRAdapter"]
+__all__ = ["adapter", "EasyOcrReaderAdapter"]

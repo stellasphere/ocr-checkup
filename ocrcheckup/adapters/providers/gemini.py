@@ -12,7 +12,7 @@ from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class GeminiVisionAdapter:
+class GoogleGeminiVisionAdapter:
     id = "google-gemini-vision"
     description = "Google Gemini vision adapter via genai SDK"
 
@@ -77,7 +77,7 @@ class GeminiVisionAdapter:
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = GeminiVisionAdapter()
+adapter = GoogleGeminiVisionAdapter()
 
 
-__all__ = ["adapter", "GeminiVisionAdapter"]
+__all__ = ["adapter", "GoogleGeminiVisionAdapter"]

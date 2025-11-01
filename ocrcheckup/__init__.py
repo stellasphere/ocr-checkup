@@ -6,6 +6,7 @@ from .evaluation.evaluators import AccuracyEvaluator, CorrectnessEvaluator, Cost
 from .runs.predict import run_prediction
 from .runs.evaluate import run_evaluation
 from .catalog import register_default_components
+from .variants import discover_variants
 
 __all__ = [
     # Core types
@@ -31,6 +32,7 @@ __all__ = [
     "run_prediction",
     "run_evaluation",
     "register_default_components",
+    "discover_variants",
 ]
 
 __version__ = "0.1.0"

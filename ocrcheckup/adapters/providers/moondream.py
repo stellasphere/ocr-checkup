@@ -12,7 +12,7 @@ from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class MoondreamAdapter:
+class MoondreamTransformersAdapter:
     id = "moondream-transformers"
     description = "Moondream2 vision-language adapter"
 
@@ -81,14 +81,12 @@ class MoondreamAdapter:
         metadata = {
             "provider": "moondream",
             "model": self._model_id,
-            "revision": self._revision,
-            "device": str(self._device),
         }
 
         return AdapterOutput(prediction=prediction.strip(), metadata=metadata)
 
 
-adapter = MoondreamAdapter()
+adapter = MoondreamTransformersAdapter()
 
 
-__all__ = ["adapter", "MoondreamAdapter"]
+__all__ = ["adapter", "MoondreamTransformersAdapter"]

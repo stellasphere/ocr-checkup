@@ -10,34 +10,26 @@ from mistralai import Mistral
 from PIL import Image
 
 from ocrcheckup.adapters.base import AdapterOutput
+from ocrcheckup.adapters.utils import rate_limit
 from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
-from ocrcheckup.rate_limiter import RateLimiter
 
 
 DEFAULT_RPM = 360
 
 
-class MistralOCRAdapter:
+class MistralOcrApiAdapter:
     id = "mistral-ocr-api"
     description = "Mistral OCR hosted API adapter"
 
     def __init__(self) -> None:
         self._client: Optional[Mistral] = None
-        self._limiters: Dict[int, RateLimiter] = {}
         self._markdown = MarkdownIt()
 
     def _client_instance(self) -> Mistral:
         if self._client is None:
             self._client = Mistral()
         return self._client
-
-    def _rate_limiter(self, rpm: int) -> RateLimiter:
-        limiter = self._limiters.get(rpm)
-        if limiter is None:
-            limiter = RateLimiter(rpm)
-            self._limiters[rpm] = limiter
-        return limiter
 
     def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not config:
@@ -54,9 +46,7 @@ class MistralOCRAdapter:
 
         cfg = variant.adapter.config or {}
         rpm = int(cfg.get("rpm", DEFAULT_RPM))
-        if rpm <= 0:
-            raise ValueError("rpm must be positive")
-        self._rate_limiter(rpm).wait_if_needed()
+        rate_limit(self.id, rpm)
 
         image_path = Path(sample.image_uri)
         if not image_path.exists():
@@ -102,7 +92,7 @@ class MistralOCRAdapter:
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = MistralOCRAdapter()
+adapter = MistralOcrApiAdapter()
 
 
-__all__ = ["adapter", "MistralOCRAdapter"]
+__all__ = ["adapter", "MistralOcrApiAdapter"]

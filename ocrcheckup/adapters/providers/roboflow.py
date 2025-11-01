@@ -11,9 +11,9 @@ from PIL import Image
 from inference_sdk import InferenceHTTPClient
 
 from ocrcheckup.adapters.base import AdapterOutput
+from ocrcheckup.adapters.utils import rate_limit
 from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
-from ocrcheckup.rate_limiter import RateLimiter
 
 
 DEFAULT_RPM = 100
@@ -26,7 +26,6 @@ class RoboflowWorkflowAdapter:
     def __init__(self) -> None:
         self._client_key: Optional[Tuple[str, str]] = None
         self._client: Optional[InferenceHTTPClient] = None
-        self._limiters: Dict[int, RateLimiter] = {}
 
     def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not config:
@@ -39,13 +38,6 @@ class RoboflowWorkflowAdapter:
         if (api_url := config.get("api_url")) is not None:
             hashed["api_url"] = str(api_url)
         return hashed
-
-    def _rate_limiter(self, rpm: int) -> RateLimiter:
-        limiter = self._limiters.get(rpm)
-        if limiter is None:
-            limiter = RateLimiter(rpm)
-            self._limiters[rpm] = limiter
-        return limiter
 
     def _ensure_client(self, api_url: str, api_key: str) -> None:
         signature = (api_url, api_key)
@@ -68,10 +60,8 @@ class RoboflowWorkflowAdapter:
             raise ValueError("Roboflow adapter requires api_key via adapter config or ROBOFLOW_API_KEY env var")
         api_url = str(cfg.get("api_url", "https://serverless.roboflow.com"))
         rpm = int(cfg.get("rpm", DEFAULT_RPM))
-        if rpm <= 0:
-            raise ValueError("rpm must be positive")
 
-        self._rate_limiter(rpm).wait_if_needed()
+        rate_limit(self.id, rpm)
         self._ensure_client(api_url, api_key)
         assert self._client is not None
 
@@ -114,11 +104,7 @@ class RoboflowWorkflowAdapter:
 
         metadata = {
             "provider": "roboflow",
-            "workspace": workspace,
-            "workflow": workflow,
             "model": model,
-            "api_url": api_url,
-            "use_cache": use_cache,
             "elapsed_seconds": elapsed,
         }
 

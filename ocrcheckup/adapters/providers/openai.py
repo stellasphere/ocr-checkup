@@ -11,31 +11,23 @@ from PIL import Image
 from ocrcheckup.adapters.base import AdapterOutput
 from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
-from ocrcheckup.rate_limiter import RateLimiter
+from ocrcheckup.adapters.utils import rate_limit
 
 
-DEFAULT_RPM = 120
+DEFAULT_RPM = 240
 
 
-class OpenAIVisionAdapter:
+class OpenAIVisionChatAdapter:
     id = "openai-vision-chat"
     description = "OpenAI chat.completions vision adapter"
 
     def __init__(self) -> None:
         self._client: Optional[OpenAI] = None
-        self._limiters: Dict[int, RateLimiter] = {}
 
     def _client_instance(self) -> OpenAI:
         if self._client is None:
             self._client = OpenAI()
         return self._client
-
-    def _rate_limiter(self, rpm: int) -> RateLimiter:
-        limiter = self._limiters.get(rpm)
-        if limiter is None:
-            limiter = RateLimiter(rpm)
-            self._limiters[rpm] = limiter
-        return limiter
 
     def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not config:
@@ -55,9 +47,7 @@ class OpenAIVisionAdapter:
 
         cfg = variant.adapter.config or {}
         rpm = int(cfg.get("rpm", DEFAULT_RPM))
-        if rpm <= 0:
-            raise ValueError("rpm must be positive")
-        self._rate_limiter(rpm).wait_if_needed()
+        rate_limit(self.id, rpm)
 
         image_path = Path(sample.image_uri)
         if not image_path.exists():
@@ -116,7 +106,6 @@ class OpenAIVisionAdapter:
         metadata: Dict[str, Any] = {
             "provider": "openai",
             "model": model,
-            "detail": detail,
         }
         if getattr(response, "id", None):
             metadata["response_id"] = response.id
@@ -130,7 +119,7 @@ class OpenAIVisionAdapter:
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = OpenAIVisionAdapter()
+adapter = OpenAIVisionChatAdapter()
 
 
-__all__ = ["adapter", "OpenAIVisionAdapter"]
+__all__ = ["adapter", "OpenAIVisionChatAdapter"]

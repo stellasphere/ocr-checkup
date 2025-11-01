@@ -24,7 +24,7 @@ _DTYPE_MAP = {
 }
 
 
-class QwenVisionAdapter:
+class QwenVisionTransformersAdapter:
     id = "qwen-vision-transformers"
     description = "Qwen2.5 vision-language adapter backed by Transformers"
 
@@ -140,17 +140,12 @@ class QwenVisionAdapter:
         metadata = {
             "provider": "qwen",
             "model": self._model_id,
-            "max_new_tokens": max_new_tokens,
         }
-        if self._device_override is not None:
-            metadata["device"] = str(self._device_override)
-        if adapter_cfg.get("torch_dtype") and adapter_cfg.get("torch_dtype") != "auto":
-            metadata["torch_dtype"] = adapter_cfg["torch_dtype"]
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = QwenVisionAdapter()
+adapter = QwenVisionTransformersAdapter()
 
 
-__all__ = ["adapter", "QwenVisionAdapter"]
+__all__ = ["adapter", "QwenVisionTransformersAdapter"]

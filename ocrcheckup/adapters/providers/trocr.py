@@ -12,7 +12,7 @@ from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class TrOCRAdapter:
+class TrocrTransformersAdapter:
     id = "trocr-transformers"
     description = "Microsoft TrOCR encoder-decoder adapter"
 
@@ -78,15 +78,12 @@ class TrOCRAdapter:
         metadata = {
             "provider": "trocr",
             "model": self._model_id,
-            "device": str(self._device),
         }
-        if max_new_tokens is not None:
-            metadata["max_new_tokens"] = int(max_new_tokens)
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = TrOCRAdapter()
+adapter = TrocrTransformersAdapter()
 
 
-__all__ = ["adapter", "TrOCRAdapter"]
+__all__ = ["adapter", "TrocrTransformersAdapter"]

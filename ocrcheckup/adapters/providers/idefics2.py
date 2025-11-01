@@ -19,7 +19,7 @@ _DTYPE_MAP = {
 }
 
 
-class Idefics2Adapter:
+class Idefics2TransformersAdapter:
     id = "idefics2-transformers"
     description = "Idefics2 multimodal adapter"
 
@@ -114,20 +114,15 @@ class Idefics2Adapter:
         )
         prediction = output_text[0].strip() if output_text else ""
 
-        adapter_cfg = variant.adapter.config or {}
         metadata = {
             "provider": "idefics2",
             "model": self._model_id,
-            "device": str(self._device),
-            "max_new_tokens": max_new_tokens,
         }
-        if adapter_cfg.get("torch_dtype"):
-            metadata["torch_dtype"] = adapter_cfg["torch_dtype"]
 
         return AdapterOutput(prediction=prediction, metadata=metadata)
 
 
-adapter = Idefics2Adapter()
+adapter = Idefics2TransformersAdapter()
 
 
-__all__ = ["adapter", "Idefics2Adapter"]
+__all__ = ["adapter", "Idefics2TransformersAdapter"]
