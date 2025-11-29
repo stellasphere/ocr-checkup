@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from PIL import Image
 import pytesseract
+from PIL import Image
 
-from ocrcheckup.adapters.base import Adapter, AdapterOutput
+from ocrcheckup.adapters.base import AdapterOutput, BaseAdapter
 from ocrcheckup.core.types import Sample
 from ocrcheckup.core.variant import Variant
 
 
-class TesseractPyAdapter:
+class TesseractPyAdapter(BaseAdapter):
     id = "tesseract-pytesseract"
     description = "Tesseract OCR via pytesseract"
 
@@ -26,11 +26,5 @@ class TesseractPyAdapter:
             meta["psm"] = int(psm)
         return AdapterOutput(prediction=text, metadata=meta)
 
-    def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        # No adapter-specific config; behavior driven by Variant.fields.
-        return {}
-
 
 adapter = TesseractPyAdapter()
-
-

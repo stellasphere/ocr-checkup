@@ -72,6 +72,10 @@ def run_prediction(
         out_file = base_dir / f"{run_id}.jsonl"
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
+    setup = getattr(adapter, "setup", None)
+    if callable(setup):
+        setup()
+
     with jsonl_writer(out_file) as write:
         for sample in all_samples:
             started_at = utc_now_iso()

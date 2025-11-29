@@ -17,10 +17,25 @@ class Adapter(Protocol):
     id: str
     description: Optional[str]
 
+    def setup(self) -> None: ...
+
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput: ...
+
+    def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]: ...
+
+
+class BaseAdapter:
+    id: str
+    description: Optional[str] = None
+
+    def setup(self) -> None:
+        pass
+
+    def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
+        raise NotImplementedError
 
     def hash_config(self, config: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         return {}
 
 
-__all__ = ["Adapter", "AdapterOutput"]
+__all__ = ["Adapter", "BaseAdapter", "AdapterOutput"]

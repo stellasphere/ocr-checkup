@@ -17,4 +17,16 @@ class ModelFamily(Protocol):
         return model.model_dump(mode="json", by_alias=True, exclude_none=True)
 
 
-__all__ = ["ModelFamily"]
+class BaseFamily:
+    family_id: str
+    display_name: str
+    description: str | None = None
+    family_schema_version: str
+    fields_schema: Type[BaseModel]
+
+    def validate_fields(self, fields: dict) -> dict:
+        model = self.fields_schema.model_validate(fields)
+        return model.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+
+__all__ = ["ModelFamily", "BaseFamily"]
