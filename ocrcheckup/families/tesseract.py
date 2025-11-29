@@ -16,7 +16,7 @@ class TesseractFields(BaseModel):
 class Tesseract(BaseFamily):
     family_id = "tesseract"
     display_name = "Tesseract OCR"
-    description = "Local Tesseract OCR"
+    description = "Tesseract OCR"
     family_schema_version = "1"
     fields_schema = TesseractFields
 

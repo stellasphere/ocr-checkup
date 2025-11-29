@@ -25,6 +25,9 @@ class OpenAIAdapter(BaseAdapter, OpenAIAdapterBase):
     id = "openai"
     description = "OpenAI multimodal chat completion adapter"
 
+    def setup(self) -> None:
+        OpenAIAdapterBase.setup(self)
+
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
         snapshot = str(variant.fields.get("snapshot"))
         if not snapshot:
@@ -71,6 +74,9 @@ class AnthropicAdapter(BaseAdapter, AnthropicAdapterBase):
     id = "anthropic"
     description = "Anthropic Claude vision adapter"
 
+    def setup(self) -> None:
+        AnthropicAdapterBase.setup(self)
+
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
         version = str(variant.fields.get("version"))
         if not version:
@@ -115,6 +121,9 @@ class GeminiAdapter(BaseAdapter, GeminiAdapterBase):
     id = "gemini"
     description = "Google Gemini multimodal adapter"
 
+    def setup(self) -> None:
+        GeminiAdapterBase.setup(self)
+
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
         model_version = str(variant.fields.get("model_version"))
         if not model_version:
@@ -145,6 +154,9 @@ class GeminiAdapter(BaseAdapter, GeminiAdapterBase):
 class MistralAdapter(BaseAdapter, MistralAdapterBase):
     id = "mistral"
     description = "Mistral OCR adapter"
+
+    def setup(self) -> None:
+        MistralAdapterBase.setup(self)
 
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
         version = str(variant.fields.get("version"))
@@ -177,6 +189,9 @@ class MistralAdapter(BaseAdapter, MistralAdapterBase):
 class RoboflowAdapter(BaseAdapter, RoboflowAdapterBase):
     id = "roboflow"
     description = "Roboflow workflow adapter"
+
+    def setup(self) -> None:
+        RoboflowAdapterBase.setup(self)
 
     def run(self, variant: Variant, sample: Sample) -> AdapterOutput:
         version = str(variant.fields.get("version"))
