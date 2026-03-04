@@ -22,8 +22,10 @@ class MoondreamAdapter(BaseAdapter):
 
     def _get_model(self, model_version: str) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
         if model_version not in self._models:
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-            model = AutoModelForCausalLM.from_pretrained(model_version, trust_remote_code=True).to(device)
+            device = torch.device("cpu")
+            model = AutoModelForCausalLM.from_pretrained(
+                model_version, trust_remote_code=True, device_map={"": device}
+            )
             tokenizer = AutoTokenizer.from_pretrained(model_version, trust_remote_code=True)
             self._models[model_version] = (model, tokenizer)
         return self._models[model_version]

@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+import Levenshtein
+
+from ocrcheckup.core.time import parse_iso
 from ocrcheckup.core.variant import Variant
 from ocrcheckup.normalization.normalizer import Normalizer
 
@@ -20,29 +23,6 @@ class Evaluator(Protocol):
     ) -> Any: ...
 
 
-def _edit_distance(a: str, b: str) -> int:
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        curr = [i]
-        for j, cb in enumerate(b, 1):
-            cost = 0 if ca == cb else 1
-            curr.append(
-                min(
-                    curr[-1] + 1,
-                    prev[j] + 1,
-                    prev[j - 1] + cost,
-                )
-            )
-        prev = curr
-    return prev[-1]
-
-
 class AccuracyEvaluator:
     metric_name = "accuracy"
 
@@ -57,12 +37,7 @@ class AccuracyEvaluator:
     ) -> float:
         gt = normalizer.normalize(gt_raw)
         pred = normalizer.normalize(pred_raw)
-        if not gt and not pred:
-            return 100.0
-        if not gt and pred:
-            return 0.0
-        dist = _edit_distance(gt, pred)
-        return 100.0 * (1.0 - (dist / max(1, len(gt))))
+        return 100.0 * Levenshtein.ratio(gt, pred)
 
 
 class CorrectnessEvaluator:
@@ -82,8 +57,8 @@ class CorrectnessEvaluator:
         return 1 if gt == pred else 0
 
 
-class CostUSDEvaluator:
-    metric_name = "cost_usd"
+class SpeedEvaluator:
+    metric_name = "elapsed_seconds"
 
     def evaluate(
         self,
@@ -94,8 +69,46 @@ class CostUSDEvaluator:
         prediction_record: dict,
         variant: Variant,
     ) -> float | None:
-        # Pricing is evaluated using the prediction_record metadata and variant pricing config
+        started_at = prediction_record.get("started_at")
+        ended_at = prediction_record.get("ended_at")
+        if not started_at or not ended_at:
+            return None
+        start = parse_iso(started_at)
+        end = parse_iso(ended_at)
+        return (end - start).total_seconds()
+
+
+class CostUSDEvaluator:
+    metric_name = "cost_usd"
+
+    def __init__(self, cost_profile: str | None = None) -> None:
+        self._cost_profile = cost_profile
+
+    def evaluate(
+        self,
+        gt_raw: str,
+        pred_raw: str,
+        *,
+        normalizer: Normalizer,
+        prediction_record: dict,
+        variant: Variant,
+    ) -> float | None:
         from ocrcheckup.core.registry import pricing_models
+
+        # For local pricing with a cost profile, compute from elapsed time
+        if variant.pricing.id == "local" and self._cost_profile is not None:
+            from ocrcheckup.evaluation.cost_profiles import (
+                compute_local_cost,
+                get_cost_profile,
+            )
+
+            usd_per_hour = get_cost_profile(self._cost_profile)
+            started_at = prediction_record.get("started_at")
+            ended_at = prediction_record.get("ended_at")
+            if not started_at or not ended_at:
+                return 0.0
+            elapsed = (parse_iso(ended_at) - parse_iso(started_at)).total_seconds()
+            return compute_local_cost(elapsed, usd_per_hour)
 
         pricing = pricing_models.get(variant.pricing.id)
         return pricing.quote(prediction_record, variant, variant.pricing.config)
@@ -105,5 +118,6 @@ __all__ = [
     "Evaluator",
     "AccuracyEvaluator",
     "CorrectnessEvaluator",
+    "SpeedEvaluator",
     "CostUSDEvaluator",
 ]

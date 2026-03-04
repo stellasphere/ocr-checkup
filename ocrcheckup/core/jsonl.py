@@ -9,7 +9,7 @@ import json
 @contextmanager
 def jsonl_writer(path: Path) -> Iterator[Callable[[dict], None]]:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         def write(obj: dict) -> None:
             json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
             f.write("\n")

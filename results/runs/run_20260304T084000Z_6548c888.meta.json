@@ -1,0 +1,26 @@
+{
+  "run_id": "run_20260304T084000Z_6548c888",
+  "dataset_id": "focused-scene",
+  "variant": {
+    "name": "moondream2",
+    "family_id": "moondream2",
+    "fields": {
+      "model_version": "vikhyatk/moondream2",
+      "prompt": "Read the text in the image. Return only the text as it is visible in the image."
+    },
+    "adapter": {
+      "id": "moondream",
+      "config": null
+    },
+    "pricing": {
+      "id": "local",
+      "config": null
+    },
+    "description": null,
+    "variant_id": "74af2ca4bc053d1c"
+  },
+  "variant_id": "74af2ca4bc053d1c",
+  "seed": 42,
+  "shuffled": true,
+  "created_at": "2026-03-04T08:40:00.807Z"
+}

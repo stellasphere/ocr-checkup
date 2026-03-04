@@ -5,11 +5,16 @@ from pathlib import Path
 from ocrcheckup.core.types import load_dataset
 from ocrcheckup.core.registry import model_families, adapters, pricing_models
 from ocrcheckup.core.variant import Variant, AdapterRef, PricingRef
-from ocrcheckup.families.examples.tesseract import family as tesseract_family
+from ocrcheckup.families.tesseract import tesseract_family
 from ocrcheckup.adapters.tesseract_pytesseract import adapter as tess_adapter
 from ocrcheckup.pricing.builtins.local import pricing as local_pricing
 from ocrcheckup.normalization.normalizer import NormalizationSpec, Normalizer
-from ocrcheckup.evaluation.evaluators import AccuracyEvaluator, CorrectnessEvaluator, CostUSDEvaluator
+from ocrcheckup.evaluation.evaluators import (
+    AccuracyEvaluator,
+    CorrectnessEvaluator,
+    CostUSDEvaluator,
+    SpeedEvaluator,
+)
 from ocrcheckup.runs.predict import run_prediction
 from ocrcheckup.runs.evaluate import run_evaluation
 
@@ -44,7 +49,7 @@ def main() -> None:
         spec_version="1",
     )
     normalizer = Normalizer(spec)
-    evaluators = [AccuracyEvaluator(), CorrectnessEvaluator(), CostUSDEvaluator()]
+    evaluators = [AccuracyEvaluator(), CorrectnessEvaluator(), SpeedEvaluator(), CostUSDEvaluator()]
     eval_out = repo_root / "results" / "evals" / f"{run_id}.jsonl"
     evaluation_id = run_evaluation(
         dataset,
@@ -59,5 +64,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

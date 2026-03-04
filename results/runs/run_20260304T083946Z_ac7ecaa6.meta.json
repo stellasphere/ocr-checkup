@@ -1,0 +1,28 @@
+{
+  "run_id": "run_20260304T083946Z_ac7ecaa6",
+  "dataset_id": "focused-scene",
+  "variant": {
+    "name": "easyocr-en",
+    "family_id": "easyocr",
+    "fields": {
+      "langs": [
+        "en"
+      ],
+      "gpu": false
+    },
+    "adapter": {
+      "id": "easyocr",
+      "config": null
+    },
+    "pricing": {
+      "id": "local",
+      "config": null
+    },
+    "description": null,
+    "variant_id": "67e08f77402085a4"
+  },
+  "variant_id": "67e08f77402085a4",
+  "seed": 42,
+  "shuffled": true,
+  "created_at": "2026-03-04T08:39:46.216Z"
+}

@@ -28,14 +28,22 @@ class EvaluationRun(BaseModel):
 
 def run_evaluation(
     dataset: Dataset,
-    variant: Variant,
+    variant: Variant | None,
     run_id: str,
     *,
     out_path: Path,
     normalizer: Normalizer,
     evaluators: List[Evaluator],
     pred_path: Path | str | None = None,
+    runs_dir: Path | str = Path("results") / "runs",
 ) -> str:
+    # Load variant from run metadata if not provided
+    if variant is None:
+        from ocrcheckup.runs.predict import load_run_metadata
+
+        meta = load_run_metadata(run_id, runs_dir)
+        variant = Variant.model_validate(meta["variant"])
+
     evaluation_id = new_evaluation_id()
     erun = EvaluationRun(
         evaluation_id=evaluation_id,
@@ -46,7 +54,7 @@ def run_evaluation(
 
     index = build_sample_index(dataset)
 
-    pred_path = Path(pred_path) if pred_path is not None else (Path("results") / "runs" / f"{run_id}.jsonl")
+    pred_path = Path(pred_path) if pred_path is not None else (Path(runs_dir) / f"{run_id}.jsonl")
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -57,24 +65,32 @@ def run_evaluation(
     with jsonl_writer(out_path) as write:
         for rec in iterate_jsonl(pred_path):
             sample_id = rec["sample_id"]
-            _, sample = index[sample_id]
+            if sample_id not in index:
+                continue  # skip samples not in dataset
+            domain_id, sample = index[sample_id]
             gt_raw = sample.ground_truth_raw
             pred_raw = rec.get("prediction_raw", "")
+            is_error = rec.get("error") is not None
 
             gt_norm = normalizer.normalize(gt_raw)
             pred_norm = normalizer.normalize(pred_raw)
 
+            # Compute metrics only for non-errored samples
             metrics = {}
-            for ev in evaluators:
-                metrics[ev.metric_name] = ev.evaluate(
-                    gt_raw, pred_raw, normalizer=normalizer, prediction_record=rec, variant=variant
-                )
+            if not is_error:
+                for ev in evaluators:
+                    metrics[ev.metric_name] = ev.evaluate(
+                        gt_raw, pred_raw, normalizer=normalizer, prediction_record=rec, variant=variant
+                    )
 
             out_rec = {
                 "evaluation_id": erun.evaluation_id,
                 "run_id": run_id,
                 "variant_id": rec.get("variant_id"),
                 "sample_id": sample_id,
+                "domain_id": domain_id,
+                "is_error": is_error,
+                "error": rec.get("error"),
                 "gt_norm": gt_norm,
                 "pred_norm": pred_norm,
                 "metrics": metrics,

@@ -1,0 +1,177 @@
+{
+  "generated_at": "2026-03-04T09:22:09.347Z",
+  "dataset_id": "focused-scene",
+  "cost_profile": "macos-m4",
+  "leaderboard": {
+    "by_family": [
+      {
+        "family_id": "trocr",
+        "display_name": "TrOCR",
+        "best_variant_id": "d1b89c3f806f0369",
+        "best_variant_name": "trocr-base",
+        "variant_count": 1,
+        "mean_accuracy": 72.79704008568072,
+        "mean_correctness": 0.29292929292929293,
+        "mean_elapsed_seconds": 0.5785252525252526,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 125.83208730806982,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 72.79704008568072,
+            "mean_elapsed_seconds": 0.5785252525252526,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "family_id": "easyocr",
+        "display_name": "EasyOCR",
+        "best_variant_id": "67e08f77402085a4",
+        "best_variant_name": "easyocr-en",
+        "variant_count": 1,
+        "mean_accuracy": 71.89736733460037,
+        "mean_correctness": 0.2727272727272727,
+        "mean_elapsed_seconds": 0.14722222222222223,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 488.3594762350214,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 71.89736733460037,
+            "mean_elapsed_seconds": 0.14722222222222223,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "family_id": "tesseract",
+        "display_name": "Tesseract OCR",
+        "best_variant_id": "139f5255bfab719b",
+        "best_variant_name": "tesseract-eng-psm6",
+        "variant_count": 1,
+        "mean_accuracy": 44.6694089827236,
+        "mean_correctness": 0.16161616161616163,
+        "mean_elapsed_seconds": 0.08409090909090909,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 531.2037824972537,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 44.6694089827236,
+            "mean_elapsed_seconds": 0.08409090909090909,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "family_id": "moondream2",
+        "display_name": "Moondream2",
+        "best_variant_id": "74af2ca4bc053d1c",
+        "best_variant_name": "moondream2",
+        "variant_count": 1,
+        "mean_accuracy": null,
+        "mean_correctness": null,
+        "mean_elapsed_seconds": null,
+        "mean_cost_usd": null,
+        "total_cost_usd": null,
+        "speed_efficiency": null,
+        "cost_efficiency": null,
+        "per_domain": {}
+      }
+    ],
+    "by_variant": [
+      {
+        "variant_id": "d1b89c3f806f0369",
+        "variant_name": "trocr-base",
+        "family_id": "trocr",
+        "sample_count": 99,
+        "error_count": 0,
+        "success_count": 99,
+        "mean_accuracy": 72.79704008568072,
+        "mean_correctness": 0.29292929292929293,
+        "mean_elapsed_seconds": 0.5785252525252526,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 125.83208730806982,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 72.79704008568072,
+            "mean_elapsed_seconds": 0.5785252525252526,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "variant_id": "67e08f77402085a4",
+        "variant_name": "easyocr-en",
+        "family_id": "easyocr",
+        "sample_count": 99,
+        "error_count": 0,
+        "success_count": 99,
+        "mean_accuracy": 71.89736733460037,
+        "mean_correctness": 0.2727272727272727,
+        "mean_elapsed_seconds": 0.14722222222222223,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 488.3594762350214,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 71.89736733460037,
+            "mean_elapsed_seconds": 0.14722222222222223,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "variant_id": "139f5255bfab719b",
+        "variant_name": "tesseract-eng-psm6",
+        "family_id": "tesseract",
+        "sample_count": 99,
+        "error_count": 0,
+        "success_count": 99,
+        "mean_accuracy": 44.6694089827236,
+        "mean_correctness": 0.16161616161616163,
+        "mean_elapsed_seconds": 0.08409090909090909,
+        "mean_cost_usd": 0.0,
+        "total_cost_usd": 0.0,
+        "speed_efficiency": 531.2037824972537,
+        "cost_efficiency": null,
+        "per_domain": {
+          "focused-scene-test": {
+            "sample_count": 99,
+            "mean_accuracy": 44.6694089827236,
+            "mean_elapsed_seconds": 0.08409090909090909,
+            "mean_cost_usd": 0.0
+          }
+        }
+      },
+      {
+        "variant_id": "74af2ca4bc053d1c",
+        "variant_name": "moondream2",
+        "family_id": "moondream2",
+        "sample_count": 99,
+        "error_count": 99,
+        "success_count": 0,
+        "mean_accuracy": null,
+        "mean_correctness": null,
+        "mean_elapsed_seconds": null,
+        "mean_cost_usd": null,
+        "total_cost_usd": null,
+        "speed_efficiency": null,
+        "cost_efficiency": null,
+        "per_domain": {}
+      }
+    ]
+  }
+}
